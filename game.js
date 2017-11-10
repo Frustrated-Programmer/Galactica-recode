@@ -1,19 +1,72 @@
 /**setup**/
-let Jimp = require("jimp");
+const Jimp = require("jimp");
 const universalPrefix = "g2";
 const fs = require("fs");
 const Discord = require("discord.js");
 const client = new Discord.Client();
+
+/**varibles**/
+let map = require("./other.json").map;
 let accounts = require("./accounts.json").accounts;
 let servers = require("./other.json").servers;
 
+
 /**functions**/
-let saveJsonFile = function (file) {
+function closeCommand(txt) {
+	console.log(txt);
+	let closeCommands = "```css\n";
+	for(let i =0;i<commands.length;i++){
+		let command = commands[i];
+		for(let j =0;j<command.names.length;j++){
+			let name = command.names[j];
+			let nameClose = 0;
+			if(name.length>txt.length) {
+				for (let q = 0; q < name.length; q++) {
+					if(typeof txt[q]!=="string"){
+						break;
+					}
+					if (name[q].toLowerCase() === txt[q].toLowerCase()) {
+						nameClose++;
+					}
+				}
+			}
+			else{
+				for (let q = 0; q < txt.length; q++) {
+					if(typeof name[q]!=="string"){
+						break;
+					}
+					if (name[q].toLowerCase() === txt[q].toLowerCase()) {
+						nameClose++;
+					}
+				}
+			}
+			if(nameClose>=Math.round(name.length/2)){
+				closeCommands+=name+"\n";
+			}
+		}
+	}
+	console.log(closeCommands);
+	if(closeCommands!=="```css\n"){
+		return closeCommands+"```";
+	}
+	console.log("false");
+	return false;
+}
+function spacing(text, text2, max) {
+	let newText = text;
+	let len = max - text.length - text2.length;
+	for (let i = 0; i < len; i++) {
+		newText += " ";
+	}
+	newText += text2;
+	return newText;
+}
+function saveJsonFile(file) {
 	fs.writeFileSync(file, JSON.stringify(require(file), null, 4));
 	accounts = require("./accounts.json").accounts;
 	servers = require("./other.json").servers;
-};
-let sendBasicEmbed = function (args) {
+}
+function sendBasicEmbed(args) {
 	if (args.channel != null && args.color != null && args.content != null) {
 		let embed = new Discord.RichEmbed()
 			.setColor(args.color)
@@ -23,7 +76,97 @@ let sendBasicEmbed = function (args) {
 	else {
 		throw `${args} must contain a COLOR, CHANNEL and CONTENT`;
 	}
-};
+}
+function createMap(galaxys, xSize, ySize) {
+	let planets = [
+		{
+			name  : "empty",
+			chance: 10
+		},
+		{
+			name  : "Ocean",
+			chance: 1
+		},
+		{
+			name  : "Mine",
+			chance: 1
+		},
+		{
+			name  : "Terrestrial",
+			chance: 1
+		},
+		{
+			name  : "Gas",
+			chance: 1
+		},
+		{
+			name  : "Rocky",
+			chance: 1
+		},
+		{
+			name  : "Haven",
+			chance: 1
+		}
+	];
+	let chance = 0;
+	for (let p = 0; p < planets.length; p++) {
+		chance += planets[p].chance;//puts together the entire "chance" of all planets
+	}
+	let map = [];
+	for (let g = 0; g < galaxys; g++) {
+		let galaxy = [];
+		for (let y = 0; y < ySize; y++) {
+			let yMap = [];
+			for (let x = 0; x < xSize; x++) {
+				let whichPlanet = Math.round(Math.random() * chance);
+				let planet = undefined;
+				let amountRightNow = 0;
+				for (let p = 0; p < planets.length; p++) {
+					amountRightNow += planets[p].chance;
+					if (whichPlanet <= amountRightNow) {
+						planet = p;
+						break;
+					}
+				}
+				if (planet === undefined) {
+					planet = 0;
+				}
+				let item = "planet";
+				if (planets[planet].name === "empty") {
+					item = "empty";
+				}
+				if (x < 3 && y < 3) {
+					yMap.push({
+						type     : "Safe Zone",
+						item     : "SafeZone",
+						ownersID : null,
+						soonOwner: null
+					})
+				}
+				else if (x > xSize - 3 && y > ySize - 3) {
+					yMap.push({
+						type     : "Domination Zone",
+						item     : "DominateZone",
+						ownersID : null,
+						soonOwner: null
+					})
+				}
+				else {
+					yMap.push({
+						type     : planets[planet].name,
+						item     : item,
+						ownersID : null,
+						soonOwner: null
+					});
+				}
+			}
+			galaxy.push(yMap);
+		}
+		map.push(galaxy);
+	}
+
+	return map;
+}
 function canRunCommand(command, message) {
 	console.log(message.content);
 	for (let i = 0; i < command.conditions.length; i++) {
@@ -33,6 +176,12 @@ function canRunCommand(command, message) {
 		}
 	}
 	return {val: true, msg: ""};
+}
+function captilize(word) {
+	if(typeof word === "string"&&word.length){
+		return word[0].toUpperCase()+word.substring(1).toLowerCase()
+	}
+	return false
 }
 
 /**items**/
@@ -544,7 +693,7 @@ let server = function (data) {
 	this.allowedChannels = data.allowedChannels || {};
 	this.welcomeChannel = data.welcomeChannel || {id: null, message: ""};
 	this.goodbyeChannel = data.goodbyeChannel || {id: null, message: ""};
-	this.prefix = data.prefix || "-";
+	this.prefix = data.prefix || universalPrefix;
 	this.serverID = data.serverID || "";
 	this.modChannel = data.modChannel || "";
 	this.warnings = data.warnings || {};
@@ -572,6 +721,7 @@ server.prototype.isChannelAllowed = function (channelId) {
 let ourServ = new server({serverID: "354670066480054272"});
 server.addServer(ourServ);
 
+/**conditions**/
 const accountChecks = {
 	has        : function (message) {
 		return {
@@ -589,32 +739,33 @@ const accountChecks = {
 };
 const channel = {
 	isDm     : function (message) {
-		return message.channel.type === "dm";
+		return {val:message.channel.type === "dm",msg:"Must be in a `DM` channel"};
 	},
 	isServer : function (message) {
-		return message.channel.type === "text";
+		return {val:message.channel.type === "text",msg:"Must be in a `text` channel"};
 	},
 	isAllowed: function (message) {
 		if (message.channel.type === "dm") {
-			return true;
+			return {val:true,msg:""};
 		}
-		let server = server.findServer(message.guild.id);
-		return server.isChannelAllowed(message.channel.id);
+		let theserver = server.findServer(message.guild.id);
+		return {val:theserver.isChannelAllowed(message.channel.id),msg:"Commands not allowed in that channel",author:true};
 	}
 };
 const checks = {
 	isOwner: function (message) {
-		return message.author.id === "244590122811523082";
+		return {val:message.author.id === "244590122811523082",msg:"You must be the owner of the bot"};
 	}
 };
-
 const commands = [
 	/*template
 	 {
 	 names:[""],
+	 description:"",
 	 usage:"",
 	 values:[],
 	 examples:["",""],
+	 tags      : [],
 	 conditions:[],
 	 effect:function(message,args){
 
@@ -622,48 +773,114 @@ const commands = [
 	 },
 	 */
 	{
-		names     : ["help"],
-		usage     : "help [VALUE]",
-		values    : [" ", "[COMMAND_NAME]"],
-		examples  : ["-help", "-help warp"],
-		conditions: [],
+		names     : ["help","commands","coms","command"],
+		description:"Help with commands and more detailed information about the commands",
+		usage     : "help (VALUE)",
+		values    : ["[COMMAND_NAME]"],
+		examples  : [`${universalPrefix}help`, `${universalPrefix}help warp`],
+		tags      : ["help"],
+		conditions: [{cond: channel.isAllowed}],
 		effect    : function (message, args, account, prefix) {
-			let commandTxt = "```css\n";
-			for (let i = 0; i < commands.length; i++) {
-				if (canRunCommand(commands[i], message)) {
-					commandTxt += commands[i].names[0] + "\n";
+			if (args.length) {
+				let command = null;
+				for (let i = 0; i < commands.length; i++) {
+					for (let j = 0; j < commands[i].names.length; j++) {
+						if(args[0].toLowerCase() === commands[i].names[j].toLowerCase()){
+							command = commands[i];
+							break;
+						}
+					}
+				}
+				if(command!==null){
+					let examples = "";
+					let aliases = "";
+					for (let i = 0; i < command.names.length; i++) {
+						aliases += "`" + command.names[i] + "` ";
+					}
+					for (let i = 0; i < command.examples.length; i++) {
+						examples += "`" + command.examples[i] + "` ";
+					}
+					let embed = new Discord.RichEmbed()
+						.setColor(colors.blue)
+						.setTitle(captilize(args[0]))
+						.setDescription(command.description)
+						.addField("Aliases", aliases)
+						.addField("Usage", "`" + prefix + command.usage + "`", true);
+					if (command.values.length) {
+						let vals = "";
+						for (let i = 0; i < command.values.length; i++) {
+							vals += "`" + command.values[i] + "` ";
+							if (i + 1 !== command.values.length) {
+								vals += "|| "
+							}
+						}
+						embed.addField("`[VALUE]` can be used as:", vals, true);
+					}
+					embed.addField("Examples", examples, true);
+					message.channel.send({embed});
+				}
+				else{
+					let closeCommsText = "";
+					let closeComms = closeCommand(args[0]);
+					console.log(closeComms);
+					if(closeComms!==false){
+						closeCommsText = "Or did you mean:\n"+closeComms;
+					}
+					sendBasicEmbed({
+						content:"Invalid Usage\nTry `"+prefix+"help`\n"+closeCommsText,
+						color:colors.red,
+						channel:message.channel
+					})
 				}
 			}
-			let embed = new Discord.RichEmbed()
-				.setColor(colors.blue)
-				.setTitle("HELP")
-				.setDescription("For more info\n" + prefix + "command [NAME]")
-				.addField("COMMANDS", commandTxt + "```")
-				.addField("JOIN US", "[INVITE-BOT](https://discordapp.com/oauth2/authorize?client_id=354670433154498560&scope=bot&permissions=67234830)\n[JOIN-OUR-DISCORD](https://discord.gg/J7NkgPZ)");
-			message.channel.send({embed});
+			else {
+				let commandTxt = "```css\n";
+				for (let i = 0; i < commands.length; i++) {
+					if (canRunCommand(commands[i], message)) {
+						commandTxt += commands[i].names[0] + "\n";
+					}
+				}
+				let embed = new Discord.RichEmbed()
+					.setColor(colors.blue)
+					.setTitle("HELP")
+					.setDescription("For more info\n" + prefix + "command [NAME]")
+					.addField("COMMANDS", commandTxt + "```")
+					.addField("JOIN US", "[INVITE-BOT](https://discordapp.com/oauth2/authorize?client_id=354670433154498560&scope=bot&permissions=67234830)\n[JOIN-OUR-DISCORD](https://discord.gg/J7NkgPZ)");
+				message.channel.send({embed});
+			}
 		}
 	},
 	{
 		names     : ["register"],
+		description:"Register an account with Galactica.",
 		usage     : "register",
 		values    : [],
 		examples  : ["register"],
-		conditions: [{cond: accountChecks.noAccount}],
+		tags      : ["help"],
+		conditions: [
+			{cond: accountChecks.noAccount},
+			{cond: channel.isAllowed}
+		],
 		effect    : function (message, args, account, prefix) {
+
 			let UserAccount = new Account({userID: message.author.id, id: Account.getValidId()});
 			Account.addAccount(UserAccount);
-			funs.sendBasicEmbed({
-				content: "You have created the `#" + Account.getAccounts().length + "` account.",
+			sendBasicEmbed({
+				content: "You have created the `#" + Account.getAccounts().length + "` account.\n\nBy creating this account you have agreed to allow the bot use of your EndUser's Data",
 				color  : colors.green,
 				channel: message.channel
 			});
 		}
 	},
+
+
 	{
 		names     : ["deleteAccounts"],
+		description:"Delete all account's saved",
 		usage     : "deleteAccounts",
 		values    : [],
 		examples  : ["deleteAccounts"],
+		tags      : ["Owner"],
 		conditions: [{cond: checks.isOwner}],
 		effect    : function (message, args, account, prefix) {
 			let numOfAccounts = require("./accounts.json").accounts.length;
@@ -684,27 +901,24 @@ client.on("ready", function () {
 
 });
 client.on("message", function (message) {
-	console.log(message.content);
 	if (message.author.bot) {
 		return;
 	}
-
-	let command = message.content.toLowerCase().split(" ")[0];
 	let args = message.content.toLowerCase().split(" ");
+	let command = args.shift();
 	let serverPrefix = universalPrefix.toLowerCase();
 
 	for (let i = 0; i < commands.length; i++) {
 		for (let j = 0; j < commands[i].names.length; j++) {
-			console.log(command, serverPrefix + commands[i].names[j].toLowerCase());
 			if (serverPrefix + commands[i].names[j].toLowerCase() === command) {
 				let commandCond = canRunCommand(commands[i], message);
-				console.log(commandCond);
 				if (commandCond.val) {
 					let prefix = universalPrefix;
 					if (channel.isServer(message)) {
 						prefix = server.findServer(message.guild.id).prefix;
 					}
-					commands[i].effect(message, message.content.toLowerCase().split(" ").shift(), Account.findFromId(message.author.id), prefix);
+					commands[i].effect(message,args, Account.findFromId(message.author.id), prefix);
+					return;
 				}
 				else {
 					sendBasicEmbed({
@@ -717,5 +931,6 @@ client.on("message", function (message) {
 			}
 		}
 	}
+
 });
 client.login(require("./config.json").token);
