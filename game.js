@@ -12,45 +12,42 @@ let servers = require("./other.json").servers;
 
 
 /**functions**/
-function closeCommand(txt) {
-	console.log(txt);
-	let closeCommands = "```css\n";
-	for(let i =0;i<commands.length;i++){
-		let command = commands[i];
-		for(let j =0;j<command.names.length;j++){
-			let name = command.names[j];
-			let nameClose = 0;
-			if(name.length>txt.length) {
-				for (let q = 0; q < name.length; q++) {
-					if(typeof txt[q]!=="string"){
-						break;
-					}
-					if (name[q].toLowerCase() === txt[q].toLowerCase()) {
-						nameClose++;
-					}
-				}
+function spellCheck(input, text, inaccuracy){
+	/**CREDIT TO GRANDZAM**/
+	//first, strip all spaces
+	while (input.charCodeAt(input.length-1) === 32) {
+		input = input.slice(0, -1);
+	}
+	let inputArray = input.toLowerCase().split("");
+	let textArray = text.toLowerCase().split("");
+	let mistakes = 0;
+	//first, check if corresponding characters are the same
+	for (let i=0; i< inputArray>textArray ? inputArray : textArray; i++){
+		if(inputArray[i] !== textArray[i]){
+			//next, we check if it is just a character that has been omitted. If so we align the arrays so it doesn't keep registering mistakes
+			if(inputArray[i] === textArray[i+1]){
+				inputArray.splice(i,0," ");
 			}
-			else{
-				for (let q = 0; q < txt.length; q++) {
-					if(typeof name[q]!=="string"){
-						break;
-					}
-					if (name[q].toLowerCase() === txt[q].toLowerCase()) {
-						nameClose++;
-					}
-				}
+			//then we check if it is an extra character that has been added and remove the character, but still register it as a mistake
+			else if(inputArray[i+1] === textArray[i]){
+				inputArray.splice(i,1);
 			}
-			if(nameClose>=Math.round(name.length/2)){
-				closeCommands+=name+"\n";
-			}
+			mistakes++;
+		}
+		if(mistakes>inaccuracy){
+			break;
 		}
 	}
-	console.log(closeCommands);
-	if(closeCommands!=="```css\n"){
-		return closeCommands+"```";
+	if(mistakes>inaccuracy){
+		return false;
 	}
-	console.log("false");
-	return false;
+	if(mistakes>0) {
+		return true;
+	}
+	else {
+		return true;
+	}
+
 }
 function spacing(text, text2, max) {
 	let newText = text;
@@ -783,8 +780,13 @@ const commands = [
 		effect    : function (message, args, account, prefix) {
 			if (args.length) {
 				let command = null;
+				let coms = "";
+				let txt = "";
 				for (let i = 0; i < commands.length; i++) {
 					for (let j = 0; j < commands[i].names.length; j++) {
+						if(spellCheck(args[0],commands[i].names[j],5)){
+							coms+=commands[i].names[j]+"\n";
+						}
 						if(args[0].toLowerCase() === commands[i].names[j].toLowerCase()){
 							command = commands[i];
 							break;
@@ -820,14 +822,8 @@ const commands = [
 					message.channel.send({embed});
 				}
 				else{
-					let closeCommsText = "";
-					let closeComms = closeCommand(args[0]);
-					console.log(closeComms);
-					if(closeComms!==false){
-						closeCommsText = "Or did you mean:\n"+closeComms;
-					}
 					sendBasicEmbed({
-						content:"Invalid Usage\nTry `"+prefix+"help`\n"+closeCommsText,
+						content:"Invalid Usage\nTry `"+prefix+"help`\n"+txt,
 						color:colors.red,
 						channel:message.channel
 					})
@@ -908,28 +904,54 @@ client.on("message", function (message) {
 	let command = args.shift();
 	let serverPrefix = universalPrefix.toLowerCase();
 
-	for (let i = 0; i < commands.length; i++) {
-		for (let j = 0; j < commands[i].names.length; j++) {
-			if (serverPrefix + commands[i].names[j].toLowerCase() === command) {
-				let commandCond = canRunCommand(commands[i], message);
-				if (commandCond.val) {
-					let prefix = universalPrefix;
-					if (channel.isServer(message)) {
-						prefix = server.findServer(message.guild.id).prefix;
+	if (args[0][0] === universalPrefix || args[0] === "<@" + client.user.id + ">" || args[0].substring(0, serverPrefix.length) === serverPrefix) {
+
+		if (channel.isAllowed(message).val) {
+			let coms = "";
+			let close = "";
+			for (let i = 0; i < commands.length; i++) {
+				for (let j = 0; j < commands[i].names.length; j++) {
+					if(spellCheck(command,commands[i].names[j],5)){
+						coms+=commands[i].names[j]+"\n"
 					}
-					commands[i].effect(message,args, Account.findFromId(message.author.id), prefix);
-					return;
+					if (serverPrefix + commands[i].names[j].toLowerCase() === command) {
+						let commandCond = canRunCommand(commands[i], message);
+						if (commandCond.val) {
+							let prefix = universalPrefix;
+							if (channel.isServer(message)) {
+								prefix = server.findServer(message.guild.id).prefix;
+							}
+							commands[i].effect(message, args, Account.findFromId(message.author.id), prefix);
+							return;
+						}
+						else {
+							sendBasicEmbed({
+								content: commandCond.msg,
+								color  : colors.red,
+								channel: message.channel
+							});
+						}
+						break;
+					}
 				}
-				else {
-					sendBasicEmbed({
-						content: commandCond.msg,
-						color  : colors.red,
-						channel: message.channel
-					});
-				}
-				break;
 			}
+			if (coms.length) {
+				close="Did you mean: " + coms;
+			}
+			sendBasicEmbed({
+				content: "Unknown command\n" + close,
+				color  : colors.red,
+				channel: message.channel
+
+			})
 		}
+	}
+	else{
+		sendBasicEmbed({
+			content:channel.isAllowed(message).msg,
+			channel:message.author,
+			color:colors.red,
+		})
 	}
 
 });
