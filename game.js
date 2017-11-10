@@ -25,6 +25,7 @@ let sendBasicEmbed = function (args) {
 	}
 };
 function canRunCommand(command, message) {
+	console.log(message.content);
 	for (let i = 0; i < command.conditions.length; i++) {
 		let commandCond = command.conditions[i].cond(message);
 		if (commandCond.val === false) {
@@ -634,7 +635,7 @@ const commands = [
 				}
 			}
 			let embed = new Discord.RichEmbed()
-				.setColor(items.colors.blue)
+				.setColor(colors.blue)
 				.setTitle("HELP")
 				.setDescription("For more info\n" + prefix + "command [NAME]")
 				.addField("COMMANDS", commandTxt + "```")
@@ -651,9 +652,9 @@ const commands = [
 		effect    : function (message, args, account, prefix) {
 			let UserAccount = new Account({userID: message.author.id, id: Account.getValidId()});
 			Account.addAccount(UserAccount);
-			items.funs.sendBasicEmbed({
+			funs.sendBasicEmbed({
 				content: "You have created the `#" + Account.getAccounts().length + "` account.",
-				color  : items.colors.green,
+				color  : colors.green,
 				channel: message.channel
 			});
 		}
@@ -667,10 +668,10 @@ const commands = [
 		effect    : function (message, args, account, prefix) {
 			let numOfAccounts = require("./accounts.json").accounts.length;
 			require("./accounts.json").accounts = [];
-			items.funs.saveJsonFile("./accounts.json");
-			items.funs.sendBasicEmbed({
+			funs.saveJsonFile("./accounts.json");
+			funs.sendBasicEmbed({
 				content: "Deleted `" + numOfAccounts + "` accounts",
-				color  : items.colors.red,
+				color  : colors.red,
 				channel: message.channel
 			})
 		}
@@ -706,9 +707,9 @@ client.on("message", function (message) {
 					commands[i].effect(message, message.content.toLowerCase().split(" ").shift(), Account.findFromId(message.author.id), prefix);
 				}
 				else {
-					items.funs.sendBasicEmbed({
+					sendBasicEmbed({
 						content: commandCond.msg,
-						color  : items.colors.red,
+						color  : colors.red,
 						channel: message.channel
 					});
 				}
