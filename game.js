@@ -1,11 +1,40 @@
 /**setup**/
-const otherJson = require("./other.json");
 const Jimp = require("jimp");
-const universalPrefix = "g2";
 const fs = require("fs");
+fs.exists('./other.json', function (exists) {
+	if (!exists) {
+		let other = {
+			uniPre:"-",
+			version:"",
+			commandTags:[],
+			servers:[],
+			map:[],
+		};
+		other = JSON.stringify(other);
+		fs.writeFile("other.json", other, function (err) {
+			if (err) {
+				throw err;
+			}
+			log("created other.json");
+		});
+	}
+});
+fs.exists('./accounts.json', function (exists) {
+	if (!exists) {
+		fs.writeFile("accounts.json", "{}", function (err) {
+			if (err) {
+				throw err;
+			}
+			log("created accounts.json");
+		});
+	}
+});
+const otherJson = require("./other.json");
+let universalPrefix = otherJson.uniPre;
 const Discord = require("discord.js");
 const client = new Discord.Client();
 const version = otherJson.version;
+
 
 /**varibles**/
 let upTime = 0;
@@ -59,7 +88,7 @@ function spellCheck(input, text, inaccuracy) {
 	let textArray = text.toLowerCase().split("");
 	let mistakes = 0;
 	//first, check if corresponding characters are the same
-	for (let i = 0; i < inputArray > textArray ? inputArray : textArray; i++) {
+	for (let i = 0; i < (inputArray.length > textArray.length ? inputArray.length : textArray.length); i++) {
 		if (inputArray[i] !== textArray[i]) {
 			//next, we check if it is just a character that has been omitted. If so we align the arrays so it doesn't keep registering mistakes
 			if (inputArray[i] === textArray[i + 1]) {
@@ -75,6 +104,7 @@ function spellCheck(input, text, inaccuracy) {
 			break;
 		}
 	}
+	console.log(mistakes,inaccuracy,input);
 	if (mistakes > inaccuracy) {
 		return false;
 	}
@@ -620,6 +650,98 @@ const timeTakes = {
 
 };
 
+//TODO add factions
+/***
+let nums = playerData.userID;
+ let player = playerData;
+ if (player.faction != null) {
+				let fac = factions[player.faction];
+				if (fac) {
+					for (let i = 0; i < fac.members.length; i++) {
+						if (fac.members[i].id === player.id) {
+							if (fac.members[i].rank !== "owner") {
+								fac.members.splice(i, 1);
+							}
+							else {
+								let found = false;
+								for (let j = 0; j < fac.members.length; i++) {
+									if (fac.members[j].rank === "mod") {
+										fac.members[j].rank = "owner";
+										found = true;
+										break;
+									}
+								}
+								if (!found) {
+									for (let j = 0; j < fac.members.length; i++) {
+										if (fac.members[j].rank === "mod") {
+											accountData[fac.members[j].id].faction = null;
+										}
+									}
+									delete factions[player.faction];
+								}
+							}
+						}
+					}
+				}
+			}
+ if (player.stations.length) {
+				for (let i = 0; i < player.stations.length; i++) {
+					let loc = player.stations[i].location;
+					map[loc[0]][loc[1]][loc[2]].type = "empty";
+					map[loc[0]][loc[1]][loc[2]].ownersID = null;
+				}
+			}
+ for (let i = 0; i < accountData.names.length; i++) {
+				if (accountData.names[i] === player.userID) {
+					accountData.names.splice(i, 1);
+				}
+			}
+ let newData = {
+				names: accountData.names
+			};
+ for (let i = 0; i < accountData.names.length; i++) {
+				newData[accountData.names[i]] = accountData[accountData.names[i]];
+			}
+ require("./accounts.json").players = newData;
+ accountData = newData;
+
+ */
+
+let Faction = function (data) {
+	data = data || {};
+
+	this.name = data.name || "";
+
+	this.description = data.description || "";
+	this.canUseDescription = data.canUseDescription || false;
+	this.image = data.image || "";
+	this.niceAdLevel = data.niceAdLevel || 0;
+	this.canUseImage = data.canUseImage || false;
+	this.color = data.color || 0x252FF3;
+	this.canUseColor = data.canUseColor || false;
+	this.emoji = data.emoji || "🛡";
+	this.level = data.level || 0;
+	this.lastAd = data.lastAd || 0;
+
+	this.members = data.members || [];
+	this.maxMembers = data.maxMembers || 5;
+	this.maxMods = data.maxMods || 0;
+	this.aboutToBecomeOwner = data.aboutToBecomeOwner || "";
+
+	this["credits"] = data["credits"] || 0;
+	this["beryllium"] = data["beryllium"] || 0;
+	this["silicon"] = data["silicon"] || 0;
+	this["food"] = data["food"] || 0;
+	this["steel"] = data["steel"] || 0;
+	this["titanium"] = data["titanium"] || 0;
+	this["carbon"] = data["carbon"] || 0;
+	this["neutronium"] = data["neutronium"] || 0;
+	this["electricity"] = data["electricity"] || 0;
+	this["research"] = data["research"] || 0;
+	this["people"] = data["people"] || 0;
+
+};
+
 /**accounts**/
 let Account = function (data) {
 	data = data || {};
@@ -670,6 +792,7 @@ let Account = function (data) {
 Account.getValidId = function () {
 	let id = 1;
 	while (true) {
+		id++;
 		let found = false;
 		for (let i = 0; i < accounts.length; i++) {
 			if (accounts[i].id === id) {
@@ -685,7 +808,6 @@ Account.getValidId = function () {
 };
 Account.addAccount = function (account) {
 	accounts.push(account);
-	saveJsonFile("./accounts.json");
 };
 Account.getAccounts = function () {
 	return accounts;
@@ -719,7 +841,9 @@ Account.prototype.moveTo = function (loc) {
 		throw `loc must be an array not: ${loc}`
 	}
 };
+Account.prototype.remove = function(){
 
+}
 
 /**servers**/
 let server = function (data) {
@@ -740,14 +864,13 @@ server.getServers = function () {
 };
 server.addServer = function (serv) {
 	servers[serv.serverID] = serv;
-	saveJsonFile("./other.json");
 };
 server.prototype.changeItem = function (item, newVal) {
 	this[item] = newVal;
 };
 server.prototype.isChannelAllowed = function (channelId) {
-	if (this.allowedChannels[channelId] === null) {
-		return false;
+	if (this.allowedChannels[channelId] == null) {
+		return true;
 	}
 	return this.allowedChannels[channelId];
 };
@@ -771,7 +894,7 @@ const accountChecks = {
 		return {val: account[item] > amo, msg: `You need more than ${amo} ${item}` + amo > 1 ? "s." : "."};
 	}
 };
-const channel = {
+const channelChecks = {
 	isDm     : function (message) {
 		return {val: message.channel.type === "dm", msg: "Must be in a `DM` channel"};
 	},
@@ -795,7 +918,12 @@ const checks = {
 		return {val: message.author.id === "244590122811523082", msg: "You must be the owner of the bot"};
 	}
 };
-const commands = [
+const factionChecks = {
+	has: function (message) {
+		
+	}
+};
+let commands = [
 	/*template
 	 {
 	 names:[""],
@@ -805,7 +933,7 @@ const commands = [
 	 examples:["",""],
 	 tags      : [],
 	 conditions:[],
-	 effect:function(message,args){
+	 effect:function(message,args,account,prefix){
 
 	 }
 	 },
@@ -818,10 +946,11 @@ const commands = [
 		description: "Help with commands and more detailed information about the commands",
 		usage      : "help (VALUE)",
 		values     : ["[COMMAND_NAME]"],
-		examples   : ["help", `help ${commands[Math.round(3 + Math.random() * commands.length - 1)].names[0]}`],
+		examples   : ["help", "Item will be changed"],
 		tags       : ["help"],
-		conditions : [{cond: channel.isAllowed}],
+		conditions : [{cond: channelChecks.isAllowed}],
 		effect     : function (message, args, account, prefix) {
+			commands[0].examples[1] = `help ${commands[Math.round(Math.random() * (commands.length - 1))].names[0]}`;
 			if (args.length) {
 				let command = null;
 				let coms = "";
@@ -866,6 +995,9 @@ const commands = [
 					message.channel.send({embed});
 				}
 				else {
+					if(coms.length){
+						txt = "Did you mean:```css\n"+coms+"```";
+					}
 					sendBasicEmbed({
 						content: "Invalid Usage\nTry `" + prefix + "help`\n" + txt,
 						color  : colors.red,
@@ -897,8 +1029,8 @@ const commands = [
 		values     : ["List", "{COMMAND_NAME}"],
 		examples   : ["tags", "tags list", "tags help", "tags moderation"],
 		tags       : ["help"],
-		conditions : [{cond: channel.isAllowed}],
-		effect     : function (message, args, playerData, prefix) {
+		conditions : [{cond: channelChecks.isAllowed}],
+		effect     : function (message, args, account, prefix) {
 			if (!args.length) {
 				args[0] = "list";
 			}
@@ -931,10 +1063,10 @@ const commands = [
 					break;
 				default:
 					let tagNum = null;
-					let tagsText = "";
+					let didYouMeanTags = "";
 					for (let i = 0; i < tags.length; i++) {
 						if (spellCheck(tags[i].toLowerCase(), args[0], Math.round(tags[i].length / 4))) {
-							tagsText += captilize(tags[i]) + "\n";
+							didYouMeanTags+= captilize(tags[i]) + "\n";
 						}
 						if (tags[i].toLowerCase() === args[0]) {
 							tagNum = i;
@@ -943,8 +1075,8 @@ const commands = [
 					}
 					if (tagNum === null) {
 						let spellCheckList = "";
-						if (tagsText.length) {
-							spellCheckList = "Did you mean:\n```css\n" + tagsText + "```";
+						if (didYouMeanTags.length) {
+							spellCheckList = "Did you mean:\n```css\n" + didYouMeanTags + "```";
 						}
 						sendBasicEmbed({
 							content: "Invalid Tag Name!\n" + spellCheckList,
@@ -966,8 +1098,8 @@ const commands = [
 		values     : [],
 		examples   : ["version"],
 		tags       : ["help", "info"],
-		conditions : [{cond: channel.isAllowed}],
-		effect     : function (message, args) {
+		conditions : [{cond: channelChecks.isAllowed}],
+		effect     : function (message, args,account,prefix) {
 			sendBasicEmbed({
 				content: "Galactica's current version is `" + version + "`.",
 				color  : colors.purple,
@@ -982,8 +1114,8 @@ const commands = [
 		values     : [],
 		examples   : ["upTime"],
 		tags       : ["help", "info"],
-		conditions : [{cond: channel.isAllowed}],
-		effect     : function (message, args) {
+		conditions : [{cond: channelChecks.isAllowed}],
+		effect     : function (message, args,account,prefix) {
 			sendBasicEmbed({
 				content: `The bot has been up for ${getTimeRemaining(Date.now() - upTime)}`,
 				color  : colors.purple,
@@ -998,11 +1130,11 @@ const commands = [
 		values     : [],
 		examples   : ["ping"],
 		tags       : ["help", "info"],
-		conditions : [{cond: channel.isAllowed}],
-		effect     : function (message, args) {
+		conditions : [{cond: channelChecks.isAllowed}],
+		effect     : function (message, args,account,prefix) {
 			let storedTimeForPingCommand = Date.now();
 			let embed = new Discord.RichEmbed()
-				.setColor(embedColors.purple)
+				.setColor(colors.purple)
 				.setDescription("Response Time: `Loading...`");
 			message.channel.send({embed}).then(function (m) {
 				embed.setDescription("Response time: `" + (Date.now() - storedTimeForPingCommand) + "` ms");
@@ -1016,23 +1148,44 @@ const commands = [
 		usage     : "register",
 		values    : [],
 		examples  : ["register"],
-		tags      : ["help","gameplay","game"],
+		tags      : ["help","gameplay","game","account"],
 		conditions: [
 			{cond: accountChecks.noAccount},
-			{cond: channel.isAllowed}
+			{cond: channelChecks.isAllowed}
 		],
 		effect    : function (message, args, account, prefix) {
 			console.log("ran");
 			let UserAccount = new Account({userID: message.author.id, id: Account.getValidId()});
+			console.log("ran");
 			Account.addAccount(UserAccount);
+			console.log("ran");
 			sendBasicEmbed({
 				content: "You have created the `#" + Account.getAccounts().length + "` account.\n\nBy creating this account you have agreed to allow the bot use of your EndUser's Data",
 				color  : colors.green,
 				channel: message.channel
 			});
+			console.log("ran");
+
 		}
 	},
+	{
+		names:["iWantToDeleteMyAccountForever"],
+		description:"delete your account **FOREVER**",
+		usage:"iWantToDeleteMyAccountForever",
+		values:[],
+		examples:["iWantToDeleteMyAccountForever"],
+		tags      : ["gameplay","game","account"],
+		conditions:[{cond:channelChecks.isAllowed}],
+		effect:function(message,args,account,prefix){
+			account.remove(account.findFromId(message.author.id));
+			sendBasicEmbed({
+				content:`😭 Goodbye ${message.author.username}\neverything has been deleted.`,
+				color:colors.red,
+				channel:message.channel
+			})
 
+		}
+	},
 
 
 
@@ -1048,8 +1201,7 @@ const commands = [
 		effect     : function (message, args, account, prefix) {
 			let numOfAccounts = require("./accounts.json").accounts.length;
 			require("./accounts.json").accounts = [];
-			funs.saveJsonFile("./accounts.json");
-			funs.sendBasicEmbed({
+			sendBasicEmbed({
 				content: "Deleted `" + numOfAccounts + "` accounts",
 				color  : colors.red,
 				channel: message.channel
@@ -1068,27 +1220,43 @@ client.on("message", function (message) {
 		return;
 	}
 	let args = message.content.toLowerCase().split(" ");
-	let command = args.shift();
+	let command = args[0];
 	let serverPrefix = universalPrefix.toLowerCase();
 
-	if (args[0][0] === universalPrefix || args[0] === "<@" + client.user.id + ">" || args[0].substring(0, serverPrefix.length) === serverPrefix) {
-
-		if (channel.isAllowed(message).val) {
+	if (args[0].substring(0,universalPrefix.length) === universalPrefix || args[0] === "<@" + client.user.id + ">" || args[0].substring(0, serverPrefix.length) === serverPrefix) {
+		if (args[0].substring(0, serverPrefix.length) === serverPrefix) {
+			command = args[0].substring(serverPrefix.length, message.content.length);
+		}
+		else if (args[0] === "<@" + client.user.id + ">") {
+			command = message.content.toLowerCase().split(" ")[1];
+			args.shift()
+		}
+		else {
+			command = command.substring(1);
+		}
+		args.shift();
+		if (channelChecks.isAllowed(message).val) {
+			console.log("allowed");
 			let coms = "";
 			let close = "";
+			let ranCommand = false;
 			for (let i = 0; i < commands.length; i++) {
 				for (let j = 0; j < commands[i].names.length; j++) {
-					if (spellCheck(command, commands[i].names[j], 5)) {
+					console.log(commands[i].names[j],commands[i].names[j].length,Math.round(commands[i].names[j].length/3));
+					if (spellCheck(command, commands[i].names[j], Math.round(commands[i].names[j].length/3))) {
 						coms += commands[i].names[j] + "\n"
 					}
-					if (serverPrefix + commands[i].names[j].toLowerCase() === command) {
+					if (commands[i].names[j].toLowerCase() === command) {
 						let commandCond = canRunCommand(commands[i], message);
 						if (commandCond.val) {
 							let prefix = universalPrefix;
-							if (channel.isServer(message)) {
+							if (channelChecks.isServer(message)) {
 								prefix = server.findServer(message.guild.id).prefix;
 							}
 							commands[i].effect(message, args, Account.findFromId(message.author.id), prefix);
+							console.log("ran: ",command);
+							saveJsonFile("./accounts.json");
+							saveJsonFile("./other.json");
 							return;
 						}
 						else {
@@ -1097,13 +1265,13 @@ client.on("message", function (message) {
 								color  : colors.red,
 								channel: message.channel
 							});
+							return;
 						}
-						break;
 					}
 				}
 			}
 			if (coms.length) {
-				close = "Did you mean: " + coms;
+				close = "Did you mean: ```css\n" + coms+"```";
 			}
 			sendBasicEmbed({
 				content: "Unknown command\n" + close,
@@ -1112,14 +1280,15 @@ client.on("message", function (message) {
 
 			})
 		}
+		else {
+			sendBasicEmbed({
+				content: channelChecks.isAllowed(message).msg,
+				channel: message.author,
+				color  : colors.red
+			})
+		}
 	}
-	else {
-		sendBasicEmbed({
-			content: channel.isAllowed(message).msg,
-			channel: message.author,
-			color  : colors.red
-		})
-	}
+
 
 });
 client.login(require("./config.json").token);
