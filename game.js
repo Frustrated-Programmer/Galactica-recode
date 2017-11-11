@@ -847,28 +847,74 @@ const commands = [
 		}
 	},
 	{
-		names     : ["register"],
-		description:"Register an account with Galactica.",
-		usage     : "register",
-		values    : [],
-		examples  : ["register"],
-		tags      : ["help"],
-		conditions: [
-			{cond: accountChecks.noAccount},
-			{cond: channel.isAllowed}
-		],
-		effect    : function (message, args, account, prefix) {
+		names      : ["tags", "tag"],
+		description: "get a list of all the tags and their info",
+		usage      : "commands [VALUE]",
+		values     : ["List", "{COMMAND_NAME}"],
+		examples:[`${universalPrefix}tags`,`${universalPrefix}tags list`,`${universalPrefix}tags help`,`${universalPrefix}tags moderation`],
+		tags:["help"],
+		conditions : [{cond: channel.isAllowed}],
+		effect     : function (message, args, playerData, prefix) {
+			if(!args.length){
+				args[0] = "list";
+			}
+			let tags = require("./other.json").commandTags;
+			for(let i =0;i<commands.length;i++){
+				for(let j = 0;j<commands[i].tags.length;j++){
+					let addIt = true;
+					for(let q =0;q<tags.length;q++){
+						if(tags[q].toLowerCase() === args[0]){
+							addIt =false;
+							break;
+						}
+					}
+					if(addIt){
+						tags.push(commands[i].tags[j]);
+					}
+				}
+			}
+			switch(args[0]){
+				case "list":
+					let tagsText = "```css\n";
+					for(let i =0;i<tags.length;i++){
+						tagsText+=captilize(tags[i])+"\n"
+					}
+					sendBasicEmbed({
+						content:"**TAGS LIST**"+tagsText+"```",
+						color:colors.blue,
+						channel:message.channel
+					});
+					break;
+				default:
+					let tagNum = null;
+					let tagsText = "";
+					for(let i =0;i<tags.length;i++){
+						if(spellCheck(tags[i].toLowerCase(),args[0],Math.round(tags[i].length/4))){
+							tagsText+=captilize(tags[i])+"\n";
+						}
+						if(tags[i].toLowerCase() === args[0]){
+							tagNum = i;
+							break;
+						}
+					}
+					if(tagNum === null){
+						let spellCheckList = "";
+						if(tagsText.length){
+							spellCheckList = "Did you mean:\n```css\n"+tagsText+"```";
+						}
+						sendBasicEmbed({
+							content:"Invalid Tag Name!\n"+spellCheckList,
+							color:colors.red,
+							channel:message.channel
+						})
+					}
+					else {
 
-			let UserAccount = new Account({userID: message.author.id, id: Account.getValidId()});
-			Account.addAccount(UserAccount);
-			sendBasicEmbed({
-				content: "You have created the `#" + Account.getAccounts().length + "` account.\n\nBy creating this account you have agreed to allow the bot use of your EndUser's Data",
-				color  : colors.green,
-				channel: message.channel
-			});
+					}
+					break;
+			}
 		}
 	},
-
 
 	{
 		names     : ["deleteAccounts"],
