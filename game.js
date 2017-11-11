@@ -1011,6 +1011,33 @@ const commands = [
 		}
 	},
 	{
+		names     : ["register"],
+		description:"Register an account with Galactica.",
+		usage     : "register",
+		values    : [],
+		examples  : ["register"],
+		tags      : ["help","gameplay","game"],
+		conditions: [
+			{cond: accountChecks.noAccount},
+			{cond: channel.isAllowed}
+		],
+		effect    : function (message, args, account, prefix) {
+			console.log("ran");
+			let UserAccount = new Account({userID: message.author.id, id: Account.getValidId()});
+			Account.addAccount(UserAccount);
+			sendBasicEmbed({
+				content: "You have created the `#" + Account.getAccounts().length + "` account.\n\nBy creating this account you have agreed to allow the bot use of your EndUser's Data",
+				color  : colors.green,
+				channel: message.channel
+			});
+		}
+	},
+
+
+
+
+
+	{
 		names      : ["deleteAccounts"],
 		description: "Delete all account's saved",
 		usage      : "deleteAccounts",
