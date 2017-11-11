@@ -1,47 +1,84 @@
 /**setup**/
+const otherJson = require("./other.json");
 const Jimp = require("jimp");
 const universalPrefix = "g2";
 const fs = require("fs");
 const Discord = require("discord.js");
 const client = new Discord.Client();
+const version = otherJson.version;
 
 /**varibles**/
-let map = require("./other.json").map;
+let upTime = 0;
+let map = otherJson.map;
 let accounts = require("./accounts.json").accounts;
 let servers = require("./other.json").servers;
 
 
 /**functions**/
-function spellCheck(input, text, inaccuracy){
+function getTimeRemaining(time) {
+	time = parseInt(time, 10);
+	if (time < 0) {
+		time = parseInt((("" + time).substring(1, ("" + time).length)), 10)
+	}
+	let times = [[31557600000000, "millennial"], [3155760000000, "century"], [315576000000, "decade"], [31557600000, "year"], [86400000, "day"], [3600000, "hour"], [60000, "minute"], [1000, "second"], [1, "millisecond"]];
+	let timesLeft = [];
+	let timeLeftText = "";
+	let fakeTime = time;
+	for (let i = 0; i < times.length; i++) {
+		if (fakeTime >= times[i][0]) {
+			timesLeft.push([times[i][1], 0]);
+			while (fakeTime >= times[i][0]) {
+				fakeTime -= times[i][0];
+				timesLeft[timesLeft.length - 1][1]++;
+			}
+		}
+	}
+	for (let i = 0; i < timesLeft.length; i++) {
+		if (timesLeft[i][1] > 0) {
+			timeLeftText += "`" + timesLeft[i][1] + "` " + timesLeft[i][0];
+			if (timesLeft[i][1] > 1) {
+				timeLeftText += "s";
+			}
+			if (i + 2 === timesLeft.length) {
+				timeLeftText += " and "
+			}
+			else if (i + 2 !== timesLeft.length) {
+				timeLeftText += ", "
+			}
+		}
+	}
+	return timeLeftText;
+}
+function spellCheck(input, text, inaccuracy) {
 	/**CREDIT TO GRANDZAM**/
 	//first, strip all spaces
-	while (input.charCodeAt(input.length-1) === 32) {
+	while (input.charCodeAt(input.length - 1) === 32) {
 		input = input.slice(0, -1);
 	}
 	let inputArray = input.toLowerCase().split("");
 	let textArray = text.toLowerCase().split("");
 	let mistakes = 0;
 	//first, check if corresponding characters are the same
-	for (let i=0; i< inputArray>textArray ? inputArray : textArray; i++){
-		if(inputArray[i] !== textArray[i]){
+	for (let i = 0; i < inputArray > textArray ? inputArray : textArray; i++) {
+		if (inputArray[i] !== textArray[i]) {
 			//next, we check if it is just a character that has been omitted. If so we align the arrays so it doesn't keep registering mistakes
-			if(inputArray[i] === textArray[i+1]){
-				inputArray.splice(i,0," ");
+			if (inputArray[i] === textArray[i + 1]) {
+				inputArray.splice(i, 0, " ");
 			}
 			//then we check if it is an extra character that has been added and remove the character, but still register it as a mistake
-			else if(inputArray[i+1] === textArray[i]){
-				inputArray.splice(i,1);
+			else if (inputArray[i + 1] === textArray[i]) {
+				inputArray.splice(i, 1);
 			}
 			mistakes++;
 		}
-		if(mistakes>inaccuracy){
+		if (mistakes > inaccuracy) {
 			break;
 		}
 	}
-	if(mistakes>inaccuracy){
+	if (mistakes > inaccuracy) {
 		return false;
 	}
-	if(mistakes>0) {
+	if (mistakes > 0) {
 		return true;
 	}
 	else {
@@ -175,8 +212,8 @@ function canRunCommand(command, message) {
 	return {val: true, msg: ""};
 }
 function captilize(word) {
-	if(typeof word === "string"&&word.length){
-		return word[0].toUpperCase()+word.substring(1).toLowerCase()
+	if (typeof word === "string" && word.length) {
+		return word[0].toUpperCase() + word.substring(1).toLowerCase()
 	}
 	return false
 }
@@ -736,22 +773,26 @@ const accountChecks = {
 };
 const channel = {
 	isDm     : function (message) {
-		return {val:message.channel.type === "dm",msg:"Must be in a `DM` channel"};
+		return {val: message.channel.type === "dm", msg: "Must be in a `DM` channel"};
 	},
 	isServer : function (message) {
-		return {val:message.channel.type === "text",msg:"Must be in a `text` channel"};
+		return {val: message.channel.type === "text", msg: "Must be in a `text` channel"};
 	},
 	isAllowed: function (message) {
 		if (message.channel.type === "dm") {
-			return {val:true,msg:""};
+			return {val: true, msg: ""};
 		}
 		let theserver = server.findServer(message.guild.id);
-		return {val:theserver.isChannelAllowed(message.channel.id),msg:"Commands not allowed in that channel",author:true};
+		return {
+			val   : theserver.isChannelAllowed(message.channel.id),
+			msg   : "Commands not allowed in that channel",
+			author: true
+		};
 	}
 };
 const checks = {
 	isOwner: function (message) {
-		return {val:message.author.id === "244590122811523082",msg:"You must be the owner of the bot"};
+		return {val: message.author.id === "244590122811523082", msg: "You must be the owner of the bot"};
 	}
 };
 const commands = [
@@ -769,31 +810,34 @@ const commands = [
 	 }
 	 },
 	 */
+
+
+	/**HELP**/
 	{
-		names     : ["help","commands","coms","command"],
-		description:"Help with commands and more detailed information about the commands",
-		usage     : "help (VALUE)",
-		values    : ["[COMMAND_NAME]"],
-		examples  : [`${universalPrefix}help`, `${universalPrefix}help warp`],
-		tags      : ["help"],
-		conditions: [{cond: channel.isAllowed}],
-		effect    : function (message, args, account, prefix) {
+		names      : ["help", "commands", "coms", "command"],
+		description: "Help with commands and more detailed information about the commands",
+		usage      : "help (VALUE)",
+		values     : ["[COMMAND_NAME]"],
+		examples   : ["help", `help ${commands[Math.round(3 + Math.random() * commands.length - 1)].names[0]}`],
+		tags       : ["help"],
+		conditions : [{cond: channel.isAllowed}],
+		effect     : function (message, args, account, prefix) {
 			if (args.length) {
 				let command = null;
 				let coms = "";
 				let txt = "";
 				for (let i = 0; i < commands.length; i++) {
 					for (let j = 0; j < commands[i].names.length; j++) {
-						if(spellCheck(args[0],commands[i].names[j],5)){
-							coms+=commands[i].names[j]+"\n";
+						if (spellCheck(args[0], commands[i].names[j], 5)) {
+							coms += commands[i].names[j] + "\n";
 						}
-						if(args[0].toLowerCase() === commands[i].names[j].toLowerCase()){
+						if (args[0].toLowerCase() === commands[i].names[j].toLowerCase()) {
 							command = commands[i];
 							break;
 						}
 					}
 				}
-				if(command!==null){
+				if (command !== null) {
 					let examples = "";
 					let aliases = "";
 					for (let i = 0; i < command.names.length; i++) {
@@ -821,11 +865,11 @@ const commands = [
 					embed.addField("Examples", examples, true);
 					message.channel.send({embed});
 				}
-				else{
+				else {
 					sendBasicEmbed({
-						content:"Invalid Usage\nTry `"+prefix+"help`\n"+txt,
-						color:colors.red,
-						channel:message.channel
+						content: "Invalid Usage\nTry `" + prefix + "help`\n" + txt,
+						color  : colors.red,
+						channel: message.channel
 					})
 				}
 			}
@@ -851,61 +895,61 @@ const commands = [
 		description: "get a list of all the tags and their info",
 		usage      : "commands [VALUE]",
 		values     : ["List", "{COMMAND_NAME}"],
-		examples:[`${universalPrefix}tags`,`${universalPrefix}tags list`,`${universalPrefix}tags help`,`${universalPrefix}tags moderation`],
-		tags:["help"],
+		examples   : ["tags", "tags list", "tags help", "tags moderation"],
+		tags       : ["help"],
 		conditions : [{cond: channel.isAllowed}],
 		effect     : function (message, args, playerData, prefix) {
-			if(!args.length){
+			if (!args.length) {
 				args[0] = "list";
 			}
 			let tags = require("./other.json").commandTags;
-			for(let i =0;i<commands.length;i++){
-				for(let j = 0;j<commands[i].tags.length;j++){
+			for (let i = 0; i < commands.length; i++) {
+				for (let j = 0; j < commands[i].tags.length; j++) {
 					let addIt = true;
-					for(let q =0;q<tags.length;q++){
-						if(tags[q].toLowerCase() === args[0]){
-							addIt =false;
+					for (let q = 0; q < tags.length; q++) {
+						if (tags[q].toLowerCase() === args[0]) {
+							addIt = false;
 							break;
 						}
 					}
-					if(addIt){
+					if (addIt) {
 						tags.push(commands[i].tags[j]);
 					}
 				}
 			}
-			switch(args[0]){
+			switch (args[0]) {
 				case "list":
 					let tagsText = "```css\n";
-					for(let i =0;i<tags.length;i++){
-						tagsText+=captilize(tags[i])+"\n"
+					for (let i = 0; i < tags.length; i++) {
+						tagsText += captilize(tags[i]) + "\n"
 					}
 					sendBasicEmbed({
-						content:"**TAGS LIST**"+tagsText+"```",
-						color:colors.blue,
-						channel:message.channel
+						content: "**TAGS LIST**" + tagsText + "```",
+						color  : colors.blue,
+						channel: message.channel
 					});
 					break;
 				default:
 					let tagNum = null;
 					let tagsText = "";
-					for(let i =0;i<tags.length;i++){
-						if(spellCheck(tags[i].toLowerCase(),args[0],Math.round(tags[i].length/4))){
-							tagsText+=captilize(tags[i])+"\n";
+					for (let i = 0; i < tags.length; i++) {
+						if (spellCheck(tags[i].toLowerCase(), args[0], Math.round(tags[i].length / 4))) {
+							tagsText += captilize(tags[i]) + "\n";
 						}
-						if(tags[i].toLowerCase() === args[0]){
+						if (tags[i].toLowerCase() === args[0]) {
 							tagNum = i;
 							break;
 						}
 					}
-					if(tagNum === null){
+					if (tagNum === null) {
 						let spellCheckList = "";
-						if(tagsText.length){
-							spellCheckList = "Did you mean:\n```css\n"+tagsText+"```";
+						if (tagsText.length) {
+							spellCheckList = "Did you mean:\n```css\n" + tagsText + "```";
 						}
 						sendBasicEmbed({
-							content:"Invalid Tag Name!\n"+spellCheckList,
-							color:colors.red,
-							channel:message.channel
+							content: "Invalid Tag Name!\n" + spellCheckList,
+							color  : colors.red,
+							channel: message.channel
 						})
 					}
 					else {
@@ -915,16 +959,66 @@ const commands = [
 			}
 		}
 	},
-
 	{
-		names     : ["deleteAccounts"],
-		description:"Delete all account's saved",
-		usage     : "deleteAccounts",
-		values    : [],
-		examples  : ["deleteAccounts"],
-		tags      : ["Owner"],
-		conditions: [{cond: checks.isOwner}],
-		effect    : function (message, args, account, prefix) {
+		names      : ["version", "v"],
+		description: "get the galactica's current version",
+		usage      : "version",
+		values     : [],
+		examples   : ["version"],
+		tags       : ["help", "info"],
+		conditions : [{cond: channel.isAllowed}],
+		effect     : function (message, args) {
+			sendBasicEmbed({
+				content: "Galactica's current version is `" + version + "`.",
+				color  : colors.purple,
+				channel: message.channel
+			})
+		}
+	},
+	{
+		names      : ["upTime", "timeUp", "time"],
+		description: "get how long the bot's been online",
+		usage      : "upTime",
+		values     : [],
+		examples   : ["upTime"],
+		tags       : ["help", "info"],
+		conditions : [{cond: channel.isAllowed}],
+		effect     : function (message, args) {
+			sendBasicEmbed({
+				content: `The bot has been up for ${getTimeRemaining(Date.now() - upTime)}`,
+				color  : colors.purple,
+				channel: message.channel
+			})
+		}
+	},
+	{
+		names      : ["ping", "pong"],
+		description: "ping the bot and get the response time",
+		usage      : "ping",
+		values     : [],
+		examples   : ["ping"],
+		tags       : ["help", "info"],
+		conditions : [{cond: channel.isAllowed}],
+		effect     : function (message, args) {
+			let storedTimeForPingCommand = Date.now();
+			let embed = new Discord.RichEmbed()
+				.setColor(embedColors.purple)
+				.setDescription("Response Time: `Loading...`");
+			message.channel.send({embed}).then(function (m) {
+				embed.setDescription("Response time: `" + (Date.now() - storedTimeForPingCommand) + "` ms");
+				m.edit({embed});
+			})
+		}
+	},
+	{
+		names      : ["deleteAccounts"],
+		description: "Delete all account's saved",
+		usage      : "deleteAccounts",
+		values     : [],
+		examples   : ["deleteAccounts"],
+		tags       : ["Owner"],
+		conditions : [{cond: checks.isOwner}],
+		effect     : function (message, args, account, prefix) {
 			let numOfAccounts = require("./accounts.json").accounts.length;
 			require("./accounts.json").accounts = [];
 			funs.saveJsonFile("./accounts.json");
@@ -938,7 +1032,7 @@ const commands = [
 ];
 
 client.on("ready", function () {
-
+	upTime = Date.now();
 	console.log("Galactica | Online");
 
 });
@@ -957,8 +1051,8 @@ client.on("message", function (message) {
 			let close = "";
 			for (let i = 0; i < commands.length; i++) {
 				for (let j = 0; j < commands[i].names.length; j++) {
-					if(spellCheck(command,commands[i].names[j],5)){
-						coms+=commands[i].names[j]+"\n"
+					if (spellCheck(command, commands[i].names[j], 5)) {
+						coms += commands[i].names[j] + "\n"
 					}
 					if (serverPrefix + commands[i].names[j].toLowerCase() === command) {
 						let commandCond = canRunCommand(commands[i], message);
@@ -982,7 +1076,7 @@ client.on("message", function (message) {
 				}
 			}
 			if (coms.length) {
-				close="Did you mean: " + coms;
+				close = "Did you mean: " + coms;
 			}
 			sendBasicEmbed({
 				content: "Unknown command\n" + close,
@@ -992,11 +1086,11 @@ client.on("message", function (message) {
 			})
 		}
 	}
-	else{
+	else {
 		sendBasicEmbed({
-			content:channel.isAllowed(message).msg,
-			channel:message.author,
-			color:colors.red,
+			content: channel.isAllowed(message).msg,
+			channel: message.author,
+			color  : colors.red
 		})
 	}
 
