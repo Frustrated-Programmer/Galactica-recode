@@ -4,6 +4,7 @@ const fs = require(`fs`);
 fs.exists('./other.json', function (exists) {
 	if (!exists) {
 		let other = {
+			imageSize  : 1024,
 			uniPre     : `-`,
 			version    : ``,
 			waitTimes  : [],
@@ -108,11 +109,11 @@ function importJSON() {
 		console.log(`Accounts complete.`);
 	});
 }
-function saveJSON(){
+function saveJSON() {
 	console.log("Saving started");
-	fs.writeFileSync(`./factions.json`, JSON.stringify({factions:factions},null,4));
-	fs.writeFileSync(`./other.json`, JSON.stringify(otherJson,null,4));
-	fs.writeFileSync(`./accounts.json`, JSON.stringify({accounts:accounts},null,4));
+	fs.writeFileSync(`./factions.json`, JSON.stringify({factions: factions}, null, 4));
+	fs.writeFileSync(`./other.json`, JSON.stringify(otherJson, null, 4));
+	fs.writeFileSync(`./accounts.json`, JSON.stringify({accounts: accounts}, null, 4));
 }
 function copyObject(obj) {
 	return JSON.parse(JSON.stringify(obj));
@@ -357,6 +358,9 @@ function getBorders(location) {
 		bordering.push(map[location[0]][location[1]][location[2] + 1]);
 	}
 	return bordering;
+}
+function matchArray(arr1, arr2) {
+	return JSON.stringify(arr1) === JSON.stringify(arr2);
 }
 
 /**items**/
@@ -763,8 +767,8 @@ const timeTakes = {
 
 //TODO add factions
 /***
- let nums = playerData.userID;
- let player = playerData;
+ let nums = account.userID;
+ let player = account;
  if (player.faction != null) {
 				let fac = factions[player.faction];
 				if (fac) {
@@ -1369,8 +1373,8 @@ let commands = [
 			let nums = getNumbers(message.content);
 			let player = account;
 			if (nums.length) {
-				if (Account.findFromId([nums[0]]) !== false) {
-					player = accountData[nums[0]];
+				if (Account.findFromId(nums[0]) !== false) {
+					player = Account.findFromId(nums[0]);
 				}
 			}
 			let embed = new Discord.RichEmbed()
@@ -1426,16 +1430,16 @@ let commands = [
 			if (account.warping !== false || account.building !== false || account.colonizing !== false || account.researching !== false) {
 				let times = `\`\`\`css\n`;
 				if (account.warping !== false) {
-					times += spacing(`Warping: `, getTimeRemaining(account.warping.expires-Date.now()), 50);
+					times += spacing(`Warping: `, getTimeRemaining(account.warping.expires - Date.now()), 50);
 				}
 				if (account.colonizing !== false) {
-					times += spacing(`Colonizing: `, getTimeRemaining(account.colonizing.expires-Date.now()), 50);
+					times += spacing(`Colonizing: `, getTimeRemaining(account.colonizing.expires - Date.now()), 50);
 				}
 				if (account.researching !== false) {
-					times += spacing(`Researching: `, getTimeRemaining(account.researching.expires-Date.now()), 50);
+					times += spacing(`Researching: `, getTimeRemaining(account.researching.expires - Date.now()), 50);
 				}
 				if (account.building !== false) {
-					times += spacing(`Building: `, getTimeRemaining(account.building.expires-Date.now()), 50);
+					times += spacing(`Building: `, getTimeRemaining(account.building.expires - Date.now()), 50);
 				}
 				embed.addField(`Timers`, `${times}\`\`\``);
 			}
@@ -1475,15 +1479,16 @@ let commands = [
 				if (loc[2] < 0) {
 					val += `2s `;
 				}
-				else if (loc[2] > map[0][0]	.length) {
+				else if (loc[2] > map[0][0].length) {
 					val += `2l `;
 				}
-				val.substring(0,val.length-2);
+				val.substring(0, val.length - 2);
 				if (val.length) {
 					return val;
 				}
 				return false;
 			}
+
 			console.log(numbers);
 			switch (numbers.length) {
 				default:
@@ -1566,7 +1571,10 @@ let commands = [
 		values     : [],
 		examples   : [`lookAround`],
 		tags       : [`gameplay`, `map`],
-		conditions : [],
+		conditions : [
+			{cond:channelChecks.isAllowed},
+			{cond:accountChecks.has}
+		],
 		effect     : function (message, args, account, prefix) {
 			let pos = account.location;
 			let loc = map[pos[0]][pos[1]][pos[2]];
@@ -1681,7 +1689,256 @@ let commands = [
 			message.channel.send({embed});
 		}
 	},
+	{
+		names      : [`scan`],
+		description: `scan the area around you`,
+		usage      : `scan`,
+		values     : [],
+		examples   : [`scan`],
+		tags       : ["gameplay"],
+		conditions : [
+			{cond:channelChecks.isAllowed},
+			{cond:accountChecks.has}
+			],
+		effect     : function (message, args, account, prefix) {
+			let mainSize = require("./other.json").imageSize;
+			let go = null;
+			let mess = null;
+			let embed = new Discord.RichEmbed()
+				.setDescription("```fix\nLoading...\nPlease give the bot some time```")
+				.setColor(colors.blue);
+			message.channel.send({embed}).then(function (m) {
+				mess = m;
+			});
+			function doFun(num) {
+				fs.exists("TheImages/mapImage" + account.userID + ".png", function (exists) {
+					go = exists;
+				});
+				if (go) {
+					message.channel.stopTyping(true);
+					let emb = new Discord.RichEmbed()
+						.setColor(colors.blue)
+						.setDescription("Scanned")
+						.attachFile("./TheImages/mapImage" + account.userID + ".png")
+						.setImage("attachment://mapImage" + account.userID + ".png");
+					message.channel.send({embed: emb}).then(function () {
+						fs.unlink("TheImages/mapImage" + account.userID + ".png");
+						if (mess != null) {
+							mess.delete();
+						}
+					});
+				}
+				else {
+					setTimeout(function () {
+						doFun(num + 1)
+					}, 1000);
+				}
+			}
 
+			setTimeout(function () {
+				doFun(1);
+			}, 1000);
+			message.channel.startTyping();
+			let loc = account.location;
+			let m = map[loc[0]];
+			let size = mainSize / (m.length + 1);
+
+			let done = [];
+			let playersVision = 3;
+			playersVision += account["Eagle Eyed"];
+			if (typeof playersVision !== "number") {
+				playersVision = 3;
+			}
+			let canShowFunc = function (y, x) {
+				let theMap = map[account.location[0]];
+
+				let found = false;
+				let checkIfCanBe = function (x, y, dis) {
+					let theMap = map[account.location[0]];
+					if (x < 0 || y < 0 || y + 1 > theMap.length || x + 1 > theMap[y].length) {
+						return;
+					}
+					if (matchArray([account.location[0], y, x], account.location, false) && dis <= playersVision) {
+						found = true;
+					}
+					if (theMap[y][x].ownersID != null) {
+						if (theMap[y][x].ownersID === account.userID) {
+
+							if (theMap[y][x].type.toLowerCase() === "military station") {
+								for (let i = 0; i < account.stations.length; i++) {
+									let stats = account.stations[i];
+									if (matchArray([account.location[0], y, x], stats.location)) {
+										if (stats.level + 1 >= dis) {
+											found = true;
+										}
+									}
+								}
+							}
+							else if (theMap[y][x].item === "station") {
+								if (dis <= 1) {
+									found = true;
+								}
+							}
+							else if (theMap[y][x].item === "colony") {
+								if (dis <= 1) {
+									found = true;
+								}
+							}
+
+						}
+					}
+				};
+				checkIfCanBe(x, y, 0);
+				for (let i = 0; i < 4; i++) {
+					for (let j = 0; j <= 5 - i; j++) {
+						checkIfCanBe(x + j, y + i, i + j);
+						checkIfCanBe(x - j, y + i, i + j);
+						checkIfCanBe(x + j, y - i, i + j);
+						checkIfCanBe(x - j, y - i, i + j);
+
+						checkIfCanBe(x + i, y + j, i + j);
+						checkIfCanBe(x - i, y + j, i + j);
+						checkIfCanBe(x + i, y - j, i + j);
+						checkIfCanBe(x - i, y - j, i + j);
+					}
+				}
+				return found;
+			};
+			let setImage = function (y, x, which, newimage) {
+				console.log("read",which);
+				Jimp.read(which, function (err, image) {
+					if (err) throw err;
+					image.resize(size, size);
+					newimage.composite(image, (x + 1) * size, (y + 1) * size);
+					done[y][x] = true;
+				});
+			};
+			console.log("b4")
+			let image = new Jimp(mainSize, mainSize, function (err, newimage) {
+				console.log("aft");
+				for (let i = 0; i < m.length; i++) {
+					done.push([]);
+					for (let j = 0; j < m[i].length; j++) {
+						let folder = "";
+						let who = "";
+						let typeImage = m[i][j].type;
+
+						done[i].push(false);
+						let canShow = canShowFunc(i, j);
+
+						if (canShow) {
+							if (m[i][j].type !== "empty") {
+								if (m[i][j].ownersID !== null) {
+									if (m[i][j].ownersID === account.userID) {
+										who = "You";
+									}
+									if (account.faction != null) {
+										let fac = factions[account.faction];
+										if (fac) {
+											let found = false;
+											for (let f = 0; f < fac.members.length; f++) {
+												if (m[i][j].ownersID === fac.members[i]) {
+													found = true;
+													break;
+												}
+											}
+											if (found) {
+												who = "Faction";
+
+											}
+											else {
+												who = "Enemy";
+											}
+										}
+									}
+									else {
+										who = "Enemy";
+									}
+									folder = m[i][j].item + "s";
+									if (m[i][j].item === "colony") {
+										folder = "planets";
+										typeImage = m[i][j].type + "Planet";
+									}
+								}
+								else {
+									if (m[i][j].item === "planet") {
+										folder = "planets";
+										who = "Neutral";
+										typeImage = m[i][j].type + "Planet";
+									}
+									else {
+										folder = "Other";
+										who = "items";
+										typeImage = m[i][j].type
+									}
+								}
+							}
+							if (!folder.length) {
+								folder = "Other";
+								who = "items";
+								typeImage = "EmptySpace";
+							}
+						}
+						else {
+							folder = "Other";
+							who = "items";
+							typeImage = "Unknown";
+						}
+
+						setImage(i, j, "TheImages/" + folder + "/" + who + "/" + typeImage + ".png", newimage);
+					}
+				}
+				done.push([]);
+				done[m.length].push(false);
+				let players = Account.getAccounts();
+				for (let q = 0; q < players.length; q++) {
+					let loc2 = players[q].location;
+					if (loc2[0] === account.location[0] && players[q].userID !== account.userID) {
+						if (canShowFunc(loc2[1], loc2[2])) {
+							if (loc[1] === account.location[1] && loc[2] === account.location[2]) {
+								somethingUnder = true;
+							}
+							setImage(loc2[1], loc2[2], "TheImages/Other/items/Player.png", newimage);
+						}
+					}
+				}
+
+
+				function doFun() {
+					let finished = true;
+					for (let i = 0; i < done.length; i++) {
+						for (let j = 0; j < done[i].length; j++) {
+							if (done[i][j] === false) {
+								finished = false;
+								break;
+							}
+						}
+					}
+					if (finished) {
+						newimage.write("TheImages/mapImage" + account.userID + ".png");
+					}
+					else {
+						setTimeout(function () {
+							doFun();
+						}, 1000)
+					}
+				}
+
+				done[loc[1]][loc[2]] = false;
+				setTimeout(function () {
+					doFun();
+				}, 1000);
+				Jimp.read("./TheImages/Other/items/GridLines.png", function (err, image) {
+					if (err) throw err;
+					image.resize(mainSize, mainSize);
+					newimage.composite(image, 0, 0);
+					done[m.length][0] = true;
+					done[loc[1]][loc[2]] = false;
+					setImage(loc[1], loc[2], "TheImages/Other/items/You.png", newimage);
+				});
+			});
+		}
+	},
 	{
 		names      : [`deleteAccounts`],
 		description: `Delete all account's saved`,
