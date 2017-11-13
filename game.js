@@ -6,6 +6,7 @@ fs.exists('./other.json', function (exists) {
 		let other = {
 			uniPre     : `-`,
 			version    : ``,
+			waitTimes  : [],
 			commandTags: [],
 			servers    : [],
 			map        : []
@@ -29,6 +30,19 @@ fs.exists('./accounts.json', function (exists) {
 		});
 	}
 });
+fs.exists('./factions.json', function (exists) {
+	if (!exists) {
+		let facs = {
+			factions: []
+		};
+		fs.writeFile(`factions.json`, `${JSON.stringify(facs)}`, function (err) {
+			if (err) {
+				throw err;
+			}
+			console.log(`created accounts.json`);
+		});
+	}
+});
 const otherJson = require(`./other.json`);
 let universalPrefix = otherJson.uniPre;
 const Discord = require(`discord.js`);
@@ -39,14 +53,14 @@ const version = otherJson.version;
 /**varibles**/
 let upTime = 0;
 let map = otherJson.map;
-let factions = [], servers = [], accounts = [],waitTimes = otherJson.waitTimes;
+let factions = [], servers = [], accounts = [], waitTimes = otherJson.waitTimes;
 let everySecond = false;
 
 /**functions**/
 function everySecondFun() {
-	if(waitTimes.length){
-		for(let i =0;i<waitTimes.length;i++){
-			if(waitTimes[i].expires <= Date.now()) {
+	if (waitTimes.length) {
+		for (let i = 0; i < waitTimes.length; i++) {
+			if (waitTimes[i].expires <= Date.now()) {
 				switch (waitTimes[i].type) {
 					case `warp`:
 						let acc = Account.findFromId(waitTimes[i].playerID);
@@ -54,11 +68,14 @@ function everySecondFun() {
 						let embed = new Discord.RichEmbed()
 							.setColor(colors.blue)
 							.setTitle(`Warp complete`)
-							.setDescription(`Your new location is Galaxy \`${waitTimes[i].to[0]}\` Position: \`${waitTimes[i].to[2]}x${waitTimes[i].to[1]}\``);
+							.setDescription(`Your new location is Galaxy \`${waitTimes[i].to[0] + 1}\` Position: \`${waitTimes[i].to[2] + 1}x${waitTimes[i].to[1] + 1}\``);
 						acc.send({embed});
+						acc.warping = false;
 						break;
 
 				}
+				waitTimes.splice(i, 1);
+				saveJSON();
 			}
 		}
 	}
@@ -90,6 +107,12 @@ function importJSON() {
 
 		console.log(`Accounts complete.`);
 	});
+}
+function saveJSON(){
+	console.log("Saving started");
+	fs.writeFileSync(`./factions.json`, JSON.stringify({factions:factions},null,4));
+	fs.writeFileSync(`./other.json`, JSON.stringify(otherJson,null,4));
+	fs.writeFileSync(`./accounts.json`, JSON.stringify({accounts:accounts},null,4));
 }
 function copyObject(obj) {
 	return JSON.parse(JSON.stringify(obj));
@@ -154,7 +177,6 @@ function spellCheck(input, text, inaccuracy) {
 			break;
 		}
 	}
-	console.log(mistakes, inaccuracy, input);
 	if (mistakes > inaccuracy) {
 		return false;
 	}
@@ -202,11 +224,6 @@ function getNumbers(text, parsed) {
 		}
 	}
 	return wordsWithNumbers;
-}
-function saveJsonFile(file) {
-	fs.writeFileSync(file, JSON.stringify(require(file), null, 4));
-	accounts = require(`./accounts.json`).accounts;
-	servers = require(`./other.json`).servers;
 }
 function sendBasicEmbed(args) {
 	if (args.channel != null && args.color != null && args.content != null) {
@@ -324,6 +341,22 @@ function captilize(word) {
 		return word[0].toUpperCase() + word.substring(1).toLowerCase()
 	}
 	return false
+}
+function getBorders(location) {
+	let bordering = [];
+	if (location[1] > 0) {
+		bordering.push(map[location[0]][location[1] - 1][location[2]]);
+	}
+	if (location[1] + 1 < map[location[0]].length) {
+		bordering.push(map[location[0]][location[1] + 1][location[2]]);
+	}
+	if (location[2] > 0) {
+		bordering.push(map[location[0]][location[1]][location[2] - 1]);
+	}
+	if (location[2] + 1 < map[location[0]][location[1]].length) {
+		bordering.push(map[location[0]][location[1]][location[2] + 1]);
+	}
+	return bordering;
 }
 
 /**items**/
@@ -900,13 +933,13 @@ Account.prototype.remove = function () {
 
 };
 Account.prototype.send = function (message) {
-	if(typeof this.user === "boolean"){
+	if (typeof this.user === "boolean") {
 		client.fetchUser(this.userID).then(function (user) {
 			user.send(message);
 			this.user = user;
 		});
 	}
-	else{
+	else {
 		this.user.send(message);
 	}
 };
@@ -923,7 +956,7 @@ let server = function (data) {
 	this.warnings = data.warnings || {};
 };
 server.findServer = function (id) {
-	return servers[id] || false;
+	return new server(servers[id]) || false;
 };
 server.getServers = function () {
 	return servers
@@ -1042,6 +1075,7 @@ const channelChecks = {
 				msg: ``
 			};
 		}
+		console.log(theserver);
 		console.log(theserver.isChannelAllowed(message.channel.id));
 		return {
 			val   : theserver.isChannelAllowed(message.channel.id),
@@ -1056,7 +1090,7 @@ const checks = {
 	}
 };
 
-let commands = dw[
+let commands = [
 	/*template
 	 {
 	 names 	   :[``],
@@ -1155,394 +1189,525 @@ let commands = dw[
 			}
 		}
 	},
-		{
-			names      : [`tags`, `tag`],
-			description: `get a list of all the tags and their info`,
-			usage      : `commands [VALUE]`,
-			values     : [`List`, `{COMMAND_NAME}`],
-			examples   : [`tags`, `tags list`, `tags help`, `tags moderation`],
-			tags       : [`help`],
-			conditions : [{cond: channelChecks.isAllowed}],
-			effect     : function (message, args, account, prefix) {
-				if (!args.length) {
-					args[0] = `list`;
-				}
-				let tags = require(`./other.json`).commandTags;
-				for (let i = 0; i < commands.length; i++) {
-					for (let j = 0; j < commands[i].tags.length; j++) {
-						let addIt = true;
-						for (let q = 0; q < tags.length; q++) {
-							if (tags[q].toLowerCase() === args[0]) {
-								addIt = false;
-								break;
-							}
-						}
-						if (addIt) {
-							tags.push(commands[i].tags[j]);
+	{
+		names      : [`tags`, `tag`],
+		description: `get a list of all the tags and their info`,
+		usage      : `commands [VALUE]`,
+		values     : [`List`, `{COMMAND_NAME}`],
+		examples   : [`tags`, `tags list`, `tags help`, `tags moderation`],
+		tags       : [`help`],
+		conditions : [{cond: channelChecks.isAllowed}],
+		effect     : function (message, args, account, prefix) {
+			if (!args.length) {
+				args[0] = `list`;
+			}
+			let tags = require(`./other.json`).commandTags;
+			for (let i = 0; i < commands.length; i++) {
+				for (let j = 0; j < commands[i].tags.length; j++) {
+					let addIt = true;
+					for (let q = 0; q < tags.length; q++) {
+						if (tags[q].toLowerCase() === args[0]) {
+							addIt = false;
+							break;
 						}
 					}
+					if (addIt) {
+						tags.push(commands[i].tags[j]);
+					}
 				}
-				switch (args[0]) {
-					case `list`:
-						let tagsText = `\`\`\`css\n`;
-						for (let i = 0; i < tags.length; i++) {
-							tagsText += `${captilize(tags[i])}\n`
+			}
+			switch (args[0]) {
+				case `list`:
+					let tagsText = `\`\`\`css\n`;
+					for (let i = 0; i < tags.length; i++) {
+						tagsText += `${captilize(tags[i])}\n`
+					}
+					sendBasicEmbed({
+						content: `**TAGS LIST**${tagsText}\`\`\``,
+						color  : colors.blue,
+						channel: message.channel
+					});
+					break;
+				default:
+					let tagNum = null;
+					let didYouMeanTags = ``;
+					for (let i = 0; i < tags.length; i++) {
+						if (spellCheck(tags[i].toLowerCase(), args[0], Math.round(tags[i].length / 4))) {
+							didYouMeanTags += `${captilize(tags[i])}\n`;
+						}
+						if (tags[i].toLowerCase() === args[0]) {
+							tagNum = i;
+							break;
+						}
+					}
+					if (tagNum === null) {
+						let spellCheckList = ``;
+						if (didYouMeanTags.length) {
+							spellCheckList = `Did you mean:\n\`\`\`css\n${didYouMeanTags}\`\`\``;
 						}
 						sendBasicEmbed({
-							content: `**TAGS LIST**${tagsText}\`\`\``,
-							color  : colors.blue,
+							content: `Invalid Tag Name!\n${spellCheckList}`,
+							color  : colors.red,
 							channel: message.channel
-						});
-						break;
-					default:
-						let tagNum = null;
-						let didYouMeanTags = ``;
-						for (let i = 0; i < tags.length; i++) {
-							if (spellCheck(tags[i].toLowerCase(), args[0], Math.round(tags[i].length / 4))) {
-								didYouMeanTags += `${captilize(tags[i])}\n`;
-							}
-							if (tags[i].toLowerCase() === args[0]) {
-								tagNum = i;
-								break;
-							}
-						}
-						if (tagNum === null) {
-							let spellCheckList = ``;
-							if (didYouMeanTags.length) {
-								spellCheckList = `Did you mean:\n\`\`\`css\n${didYouMeanTags}\`\`\``;
-							}
-							sendBasicEmbed({
-								content: `Invalid Tag Name!\n${spellCheckList}`,
-								color  : colors.red,
-								channel: message.channel
-							})
-						}
-						else {
+						})
+					}
+					else {
 
-						}
-						break;
-				}
-			}
-		},
-		{
-			names      : [`version`, `v`],
-			description: `get the galactica's current version`,
-			usage      : `version`,
-			values     : [],
-			examples   : [`version`],
-			tags       : [`help`, `info`],
-			conditions : [{cond: channelChecks.isAllowed}],
-			effect     : function (message, args, account, prefix) {
-				sendBasicEmbed({
-					content: `Galactica's current version is \`${version}\`.`,
-					color  : colors.purple,
-					channel: message.channel
-				})
-			}
-		},
-		{
-			names      : [`upTime`, `timeUp`, `time`],
-			description: `get how long the bot's been online`,
-			usage      : `upTime`,
-			values     : [],
-			examples   : [`upTime`],
-			tags       : [`help`, `info`],
-			conditions : [{cond: channelChecks.isAllowed}],
-			effect     : function (message, args, account, prefix) {
-				sendBasicEmbed({
-					content: `The bot has been up for ${getTimeRemaining(Date.now() - upTime)}`,
-					color  : colors.purple,
-					channel: message.channel
-				})
-			}
-		},
-		{
-			names      : [`ping`, `pong`, `🏓`, `:ping_pong:`],
-			description: `ping the bot and get the response time`,
-			usage      : `ping`,
-			values     : [],
-			examples   : [`ping`],
-			tags       : [`help`, `info`],
-			conditions : [{cond: channelChecks.isAllowed}],
-			effect     : function (message, args, account, prefix) {
-				let storedTimeForPingCommand = Date.now();
-				let embed = new Discord.RichEmbed()
-					.setColor(colors.purple)
-					.setDescription(`Response Time: \`Loading...\``);
-				message.channel.send({embed}).then(function (m) {
-					embed.setDescription(`Response time: \`${(Date.now() - storedTimeForPingCommand)}\` ms`);
-					m.edit({embed});
-				})
-			}
-		},
-		{
-			names      : [`register`],
-			description: `Register an account with Galactica.`,
-			usage      : `register`,
-			values     : [],
-			examples   : [`register`],
-			tags       : [`help`, `gameplay`, `game`, `account`],
-			conditions : [
-				{cond: accountChecks.noAccount},
-				{cond: channelChecks.isAllowed}
-			],
-			effect     : function (message, args, account, prefix) {
-				let UserAccount = new Account({
-					username: message.author.username,
-					userID  : message.author.id,
-					id      : Account.getValidId()
-				});
-				Account.addAccount(UserAccount);
-				sendBasicEmbed({
-					content: `You have created the \`#${Account.getAccounts().length}\` account.\n\nBy creating this account you have agreed to allow the bot use of your EndUser's Data`,
-					color  : colors.green,
-					channel: message.channel
-				});
-
-			}
-		},
-		{
-			names      : [`iWantToDeleteMyAccountForever`],
-			description: `delete your account **FOREVER**`,
-			usage      : `iWantToDeleteMyAccountForever`,
-			values     : [],
-			examples   : [`iWantToDeleteMyAccountForever`],
-			tags       : [`gameplay`, `game`, `account`],
-			conditions : [{cond: channelChecks.isAllowed}],
-			effect     : function (message, args, account, prefix) {
-				account.remove(account.findFromId(message.author.id));
-				sendBasicEmbed({
-					content: `😭 Goodbye ${message.author.username}\neverything has been deleted.`,
-					color  : colors.red,
-					channel: message.channel
-				})
-
-			}
-		},
-		/**GAMEPLAY**/
-		{
-			names      : [`status`, `stats`, `info`, `me`],
-			description: `Get your status or someone else's`,
-			usage      : `status (VALUE)`,
-			values     : [`@Player`, `@ID`],
-			examples   : [`status`, `status @FrustratedProgrammer#0497`, `status 244590122811523082`],
-			tags       : [`gameplay`, `info`],
-			conditions : [
-				{cond: accountChecks.has},
-				{cond: channelChecks.isAllowed}
-			],
-			effect     : function (message, args, account, prefix) {
-				let nums = getNumbers(message.content);
-				let player = account;
-				if (nums.length) {
-					if (Account.findFromId([nums[0]]) !== false) {
-						player = accountData[nums[0]];
 					}
-				}
-				let embed = new Discord.RichEmbed()
-					.setFooter(player.userID)
-					.setColor(colors.blue)
-					.setTitle(`${player.username}'s status`);
-
-				let location = ``;
-				if (player.location instanceof Array) {
-					location = `Galaxy \`${(player.location[0] + 1)}\` Position:\`${(player.location[2] + 1)}x${(player.location[1] + 1)}\``;
-					if (player.isInSafeZone) {
-						location += `\nCurrently in the Safe Zone`
-					}
-					else if (player.isDominating) {
-						location += `\nCurrently in the Domination Zone`
-					}
-				}
-				else {
-					location = player.location;
-				}
-				let fac = ``;
-				if (accountChecks.isInFaction(message)) {
-					fac = `Faction: ${captilize(account.faction)}\n`;
-				}
-				embed.addField(`INFO:`, `\`\`\`css\n${fac}Rank: ${player.rank}\nPower ${resources[`power`].emoji}: \`${player[`power`]}\`\nHealth: \`${account.health}\`\nLocation:\n${location}\`\`\``);
-
-
-				let playerResources = `\`\`\`css\n`;
-				let spaceLength = 1;
-				for (let i = 0; i < resources.names.length - 1; i++) {
-					let len = `${player[resources.names[i]]}`;
-					if (len.length > spaceLength) {
-						spaceLength = len.length;
-					}
-				}
-				for (let i = 0; i < resources.names.length - 1; i++) {
-					let space = ``;
-					let len = `${player[resources.names[i]]}`;
-					for (let j = 0; j < spaceLength - len.length; j++) {
-						space += ` `;
-					}
-					if (player[resources.names[i]] > 0) {
-						playerResources += `${player[resources.names[i]]}${space}|${resources[resources.names[i]].emoji} ${resources.names[i]}\n`;
-					}
-				}
-				if (playerResources !== `\`\`\`css\n`) {
-					embed.addField(`Resources`, `${playerResources}\`\`\``);
-				}
-				else {
-					embed.addField(`Resources`, `You currently don't have any resources`);
-				}
-				embed.addField(`Stations and Colonies`, `You have \`${player.stations.length}\` stations\nYou have \`${player.colonies.length}\` colonies`);
-				if (account.warping !== false || account.building !== false || account.colonizing !== false || account.researching !== false) {
-					let times = `\`\`\`css`;
-					if (account.warping !== false) {
-						times += spacing(`Warping: `, getTimeRemaining(Date.now() - account.warping.expires), 50);
-					}
-					if (account.colonizing !== false) {
-						times += spacing(`Colonizing: `, getTimeRemaining(Date.now() - account.colonizing.expires), 50);
-					}
-					if (account.researching !== false) {
-						times += spacing(`Researching: `, getTimeRemaining(Date.now() - account.researching.expires), 50);
-					}
-					if (account.building !== false) {
-						times += spacing(`Building: `, getTimeRemaining(Date.now() - account.building.expires), 50);
-					}
-					embed.addField(`Timers`, `${times}\`\`\``);
-				}
-				message.channel.send({embed});
-			}
-		},
-		{
-			names      : [`warp`, `travel`, `w`, `goTo`, `go`],
-			description: `warp to someplace`,
-			usage      : `warp [VALUE]`,
-			values     : [`{GALAXY}`, `{X} {Y}`, `{GALAXY} {X} {Y}`],
-			examples   : [`warp ${1 + Math.round(Math.random() * 9)}`, `warp ${1 + Math.round(Math.random() * 16)} ${1 + Math.round(Math.random() * 16)}`, `warp ${1 + Math.round(Math.random() * 9)} ${1 + Math.round(Math.random() * 16)} ${1 + Math.round(Math.random() * 16)}`],
-			tags       : [`gameplay`, `timers`],
-			conditions : [
-				{cond: channelChecks.isAllowed},
-				{cond: accountChecks.has},
-				{cond: accountChecks.isNotWarping}
-			],
-			effect     : function (message, args, account, prefix) {
-				let numbers = getNumbers(message.content);
-				let warpType, goToPos = [];
-				goToPos = copyObject(account.location);
-				function checkIfValid(loc) {
-					let val = ``;
-					if (loc[0] < 1) {
-						val += `1s `;
-					}
-					else if (loc[0] > map.length) {
-						val += `1l `
-					}
-					else if (loc[1] < 1) {
-						val += `2s `;
-					}
-					else if (loc[1] > map.length) {
-						val += `2; `;
-					}
-					else if (loc[2] < 1) {
-						val += `3s `;
-					}
-					else if (loc[2] > map.length) {
-						val += `3l `;
-					}
-					if (val !== "Invalid") {
-						return val;
-					}
-					return true;
-				}
-
-				switch (numbers.length) {
-					default:
-						warpType = `InvalidAmount`;
-						break;
-					case 1:
-						warpType = `valid`;
-						goToPos[0] = parseInt(numbers[0], 10) - 1;
-						if (checkIfValid(goToPos)) {
-							warpType = checkIfValid(goToPos);
-						}
-						break;
-					case 2:
-						warpType = `valid`;
-						goToPos[2] = parseInt(numbers[0], 10) - 1;
-						goToPos[1] = parseInt(numbers[1], 10) - 1;
-						if (checkIfValid(goToPos)) {
-							warpType = checkIfValid(goToPos);
-						}
-						break;
-					case 3:
-						warpType = `valid`;
-						goToPos[0] = parseInt(numbers[0], 10) - 1;
-						goToPos[2] = parseInt(numbers[1], 10) - 1;
-						goToPos[1] = parseInt(numbers[2], 10) - 1;
-						if (checkIfValid(goToPos)) {
-							warpType = checkIfValid(goToPos);
-						}
-						break;
-				}
-				switch (warpType) {
-					case `valid`:
-						let pLoc = account.location;
-						let timeForTheWarp = 0;
-						timeForTheWarp += (pLoc[0] >= goToPos[0] ? pLoc[0] - goToPos[0] : goToPos[0] - pLoc[0]) * 15;
-						timeForTheWarp += (pLoc[1] >= goToPos[1] ? pLoc[1] - goToPos[1] : goToPos[1] - pLoc[1]);
-						timeForTheWarp += (pLoc[2] >= goToPos[2] ? pLoc[2] - goToPos[2] : goToPos[2] - pLoc[2]);
-						timeForTheWarp = timeForTheWarp * timeTakes.warpPerPosition;
-						account.warping = {expires: Date.now() + timeForTheWarp, to: goToPos};
-						account.location = `Warping to Galaxy: \`${goToPos[0] + 1}\` Position: ${goToPos[2]}x${goToPos[1]}`;
-						waitTimes.push({expires: Date.now() + timeForTheWarp, to: goToPos, type:`warp`, playerID:message.author.id});
-						sendBasicEmbed({
-							content:`Warping to Galaxy: \`${goToPos[0] + 1}\` Position: ${goToPos[2]}x${goToPos[1]} has started.\nWill take about ${getTimeRemaining(timeForTheWarp)}.`,
-							color:colors.blue,
-							channel:message.channel,
-						});
-						break;
-					default:
-						let embed = new Discord.RichEmbed()
-							.setColor(colors.red);
-						if (warpType === `InvalidAmount`) {
-							embed.setDescription(`You must supply at minimum\`1\``);
-						}
-						else {
-							let errors = warpType.split(` `);
-							let errorMessage = `Invalid Input\n\`\`\`css`;
-							let errorTypes = [`null`, `Galaxy`, `X`, `Y`];
-							for (let i = 0; i < errors.length; i++) {
-								errorMessage += `${errorTypes[parseInt(errors[i][0], 10)]} was too ${errors[i][1] === `s` ? `small` : `large`}.\n`;
-							}
-							embed.setDescription(errorMessage + `\`\`\``);
-						}
-						message.channel.send({embed});
-						break
-
-				}
-			}
-		},
-		{
-			names      : [`deleteAccounts`],
-			description: `Delete all account's saved`,
-			usage      : `deleteAccounts`,
-			values     : [],
-			examples   : [`deleteAccounts`],
-			tags       : [`Owner`],
-			conditions : [{cond: checks.isOwner}],
-			effect     : function (message, args, account, prefix) {
-				let numOfAccounts = require(`./accounts.json`).accounts.length;
-				require(`./accounts.json`).accounts = [];
-				sendBasicEmbed({
-					content: `Deleted \`${numOfAccounts}\` accounts`,
-					color  : colors.red,
-					channel: message.channel
-				})
+					break;
 			}
 		}
-	];
+	},
+	{
+		names      : [`version`, `v`],
+		description: `get the galactica's current version`,
+		usage      : `version`,
+		values     : [],
+		examples   : [`version`],
+		tags       : [`help`, `info`],
+		conditions : [{cond: channelChecks.isAllowed}],
+		effect     : function (message, args, account, prefix) {
+			sendBasicEmbed({
+				content: `Galactica's current version is \`${version}\`.`,
+				color  : colors.purple,
+				channel: message.channel
+			})
+		}
+	},
+	{
+		names      : [`upTime`, `timeUp`, `time`],
+		description: `get how long the bot's been online`,
+		usage      : `upTime`,
+		values     : [],
+		examples   : [`upTime`],
+		tags       : [`help`, `info`],
+		conditions : [{cond: channelChecks.isAllowed}],
+		effect     : function (message, args, account, prefix) {
+			sendBasicEmbed({
+				content: `The bot has been up for ${getTimeRemaining(Date.now() - upTime)}`,
+				color  : colors.purple,
+				channel: message.channel
+			})
+		}
+	},
+	{
+		names      : [`ping`, `pong`, `🏓`, `:ping_pong:`],
+		description: `ping the bot and get the response time`,
+		usage      : `ping`,
+		values     : [],
+		examples   : [`ping`],
+		tags       : [`help`, `info`],
+		conditions : [{cond: channelChecks.isAllowed}],
+		effect     : function (message, args, account, prefix) {
+			let storedTimeForPingCommand = Date.now();
+			let embed = new Discord.RichEmbed()
+				.setColor(colors.purple)
+				.setDescription(`Response Time: \`Loading...\``);
+			message.channel.send({embed}).then(function (m) {
+				embed.setDescription(`Response time: \`${(Date.now() - storedTimeForPingCommand)}\` ms`);
+				m.edit({embed});
+			})
+		}
+	},
+	{
+		names      : [`register`],
+		description: `Register an account with Galactica.`,
+		usage      : `register`,
+		values     : [],
+		examples   : [`register`],
+		tags       : [`help`, `gameplay`, `game`, `account`],
+		conditions : [
+			{cond: accountChecks.noAccount},
+			{cond: channelChecks.isAllowed}
+		],
+		effect     : function (message, args, account, prefix) {
+			let UserAccount = new Account({
+				username: message.author.username,
+				userID  : message.author.id,
+				id      : Account.getValidId()
+			});
+			Account.addAccount(UserAccount);
+			sendBasicEmbed({
+				content: `You have created the \`#${Account.getAccounts().length}\` account.\n\nBy creating this account you have agreed to allow the bot use of your EndUser's Data`,
+				color  : colors.green,
+				channel: message.channel
+			});
+
+		}
+	},
+	{
+		names      : [`iWantToDeleteMyAccountForever`],
+		description: `delete your account **FOREVER**`,
+		usage      : `iWantToDeleteMyAccountForever`,
+		values     : [],
+		examples   : [`iWantToDeleteMyAccountForever`],
+		tags       : [`gameplay`, `game`, `account`],
+		conditions : [{cond: channelChecks.isAllowed}],
+		effect     : function (message, args, account, prefix) {
+			account.remove(account.findFromId(message.author.id));
+			sendBasicEmbed({
+				content: `😭 Goodbye ${message.author.username}\neverything has been deleted.`,
+				color  : colors.red,
+				channel: message.channel
+			})
+
+		}
+	},
+	/**GAMEPLAY**/
+	{
+		names      : [`status`, `stats`, `info`, `me`],
+		description: `Get your status or someone else's`,
+		usage      : `status (VALUE)`,
+		values     : [`@Player`, `@ID`],
+		examples   : [`status`, `status @FrustratedProgrammer#0497`, `status 244590122811523082`],
+		tags       : [`gameplay`, `info`],
+		conditions : [
+			{cond: accountChecks.has},
+			{cond: channelChecks.isAllowed}
+		],
+		effect     : function (message, args, account, prefix) {
+			let nums = getNumbers(message.content);
+			let player = account;
+			if (nums.length) {
+				if (Account.findFromId([nums[0]]) !== false) {
+					player = accountData[nums[0]];
+				}
+			}
+			let embed = new Discord.RichEmbed()
+				.setFooter(player.userID)
+				.setColor(colors.blue)
+				.setTitle(`${player.username}'s status`);
+
+			let location = ``;
+			if (player.location instanceof Array) {
+				location = `Galaxy:${(player.location[0] + 1)} Position: ${(player.location[2] + 1)}x${(player.location[1] + 1)}`;
+				if (player.isInSafeZone) {
+					location += `\nCurrently in the Safe Zone`
+				}
+				else if (player.isDominating) {
+					location += `\nCurrently in the Domination Zone`
+				}
+			}
+			else {
+				location = player.location;
+			}
+			let fac = ``;
+			if (accountChecks.isInFaction(message)) {
+				fac = `Faction: ${captilize(account.faction)}\n`;
+			}
+			embed.addField(`INFO:`, `\`\`\`css\n${fac}Rank: ${player.rank}\nPower: ${player[`power`]}\nHealth: ${account.health}\nLocation:\n${location}\`\`\``);
+
+
+			let playerResources = `\`\`\`css\n`;
+			let spaceLength = 1;
+			for (let i = 0; i < resources.names.length - 1; i++) {
+				let len = `${player[resources.names[i]]}`;
+				if (len.length > spaceLength) {
+					spaceLength = len.length;
+				}
+			}
+			for (let i = 0; i < resources.names.length - 1; i++) {
+				let space = ``;
+				let len = `${player[resources.names[i]]}`;
+				for (let j = 0; j < spaceLength - len.length; j++) {
+					space += ` `;
+				}
+				if (player[resources.names[i]] > 0) {
+					playerResources += `${player[resources.names[i]]}${space}|${resources[resources.names[i]].emoji} ${resources.names[i]}\n`;
+				}
+			}
+			if (playerResources !== `\`\`\`css\n`) {
+				embed.addField(`Resources`, `${playerResources}\`\`\``);
+			}
+			else {
+				embed.addField(`Resources`, `You currently don't have any resources`);
+			}
+			embed.addField(`Stations and Colonies`, `You have \`${player.stations.length}\` stations\nYou have \`${player.colonies.length}\` colonies`);
+			if (account.warping !== false || account.building !== false || account.colonizing !== false || account.researching !== false) {
+				let times = `\`\`\`css\n`;
+				if (account.warping !== false) {
+					times += spacing(`Warping: `, getTimeRemaining(account.warping.expires-Date.now()), 50);
+				}
+				if (account.colonizing !== false) {
+					times += spacing(`Colonizing: `, getTimeRemaining(account.colonizing.expires-Date.now()), 50);
+				}
+				if (account.researching !== false) {
+					times += spacing(`Researching: `, getTimeRemaining(account.researching.expires-Date.now()), 50);
+				}
+				if (account.building !== false) {
+					times += spacing(`Building: `, getTimeRemaining(account.building.expires-Date.now()), 50);
+				}
+				embed.addField(`Timers`, `${times}\`\`\``);
+			}
+			message.channel.send({embed});
+		}
+	},
+	{
+		names      : [`warp`, `travel`, `w`, `goTo`, `go`],
+		description: `warp to someplace`,
+		usage      : `warp [VALUE]`,
+		values     : [`{GALAXY}`, `{X} {Y}`, `{GALAXY} {X} {Y}`],
+		examples   : [`warp ${1 + Math.round(Math.random() * 9)}`, `warp ${1 + Math.round(Math.random() * 16)} ${1 + Math.round(Math.random() * 16)}`, `warp ${1 + Math.round(Math.random() * 9)} ${1 + Math.round(Math.random() * 16)} ${1 + Math.round(Math.random() * 16)}`],
+		tags       : [`gameplay`, `timers`, `map`],
+		conditions : [
+			{cond: channelChecks.isAllowed},
+			{cond: accountChecks.has},
+			{cond: accountChecks.isNotWarping}
+		],
+		effect     : function (message, args, account, prefix) {
+			let numbers = getNumbers(message.content);
+			let warpType, goToPos = [];
+			goToPos = copyObject(account.location);
+			function checkIfValid(loc) {
+				let val = ``;
+				if (loc[0] < 0) {
+					val += `0s `;
+				}
+				else if (loc[0] > map.length) {
+					val += `0l `
+				}
+				if (loc[1] < 0) {
+					val += `1s `;
+				}
+				else if (loc[1] > map[0].length) {
+					val += `1s `;
+				}
+				if (loc[2] < 0) {
+					val += `2s `;
+				}
+				else if (loc[2] > map[0][0]	.length) {
+					val += `2l `;
+				}
+				val.substring(0,val.length-2);
+				if (val.length) {
+					return val;
+				}
+				return false;
+			}
+			console.log(numbers);
+			switch (numbers.length) {
+				default:
+					warpType = `InvalidAmount`;
+					break;
+				case 1:
+					warpType = `valid`;
+					goToPos[0] = parseInt(numbers[0], 10) - 1;
+					if (checkIfValid(goToPos)) {
+						warpType = checkIfValid(goToPos);
+					}
+					break;
+				case 2:
+					warpType = `valid`;
+					goToPos[2] = parseInt(numbers[0], 10) - 1;
+					goToPos[1] = parseInt(numbers[1], 10) - 1;
+					if (checkIfValid(goToPos)) {
+						warpType = checkIfValid(goToPos);
+					}
+					break;
+				case 3:
+					warpType = `valid`;
+					goToPos[0] = parseInt(numbers[0], 10) - 1;
+					goToPos[2] = parseInt(numbers[1], 10) - 1;
+					goToPos[1] = parseInt(numbers[2], 10) - 1;
+					if (checkIfValid(goToPos)) {
+						warpType = checkIfValid(goToPos);
+					}
+					break;
+			}
+			switch (warpType) {
+				case `valid`:
+					let pLoc = account.location;
+					let timeForTheWarp = 0;
+					timeForTheWarp += (pLoc[0] >= goToPos[0] ? pLoc[0] - goToPos[0] : goToPos[0] - pLoc[0]) * 20;
+					timeForTheWarp += (pLoc[1] >= goToPos[1] ? pLoc[1] - goToPos[1] : goToPos[1] - pLoc[1]);
+					timeForTheWarp += (pLoc[2] >= goToPos[2] ? pLoc[2] - goToPos[2] : goToPos[2] - pLoc[2]);
+					timeForTheWarp = timeForTheWarp * timeTakes.warpPerPosition;
+					console.log(goToPos);
+					account.warping = {expires: Date.now() + timeForTheWarp, to: goToPos};
+					account.location = `Warping to Galaxy: \`${goToPos[0] + 1}\` Position: \`${goToPos[2]}x${goToPos[1]}\``;
+					waitTimes.push({
+						expires : Date.now() + timeForTheWarp,
+						to      : goToPos,
+						type    : `warp`,
+						playerID: message.author.id
+					});
+					sendBasicEmbed({
+						content: `Warping to Galaxy: \`${goToPos[0] + 1}\` Position: \`${goToPos[2] + 1}x${goToPos[1] + 1}\` has started.\nWill take about ${getTimeRemaining(timeForTheWarp)}.`,
+						color  : colors.blue,
+						channel: message.channel
+					});
+					break;
+				default:
+					let embed = new Discord.RichEmbed()
+						.setColor(colors.red);
+					if (warpType === `InvalidAmount`) {
+						embed.setDescription(`You must supply at minimum\`1\``);
+					}
+					else {
+						let errors = warpType.split(` `);
+						let errorMessage = `Invalid Input\n\`\`\`css\n`;
+						let errorTypes = [`null`, `Galaxy`, `X`, `Y`];
+						for (let i = 0; i < errors.length; i++) {
+							console.log(errors[i]);
+							errorMessage += `${errorTypes[parseInt(errors[i][0], 10)]} was too ${errors[i][1] === `s` ? `small` : `large`}.\n`;
+						}
+						embed.setDescription(errorMessage + `\`\`\``);
+					}
+					message.channel.send({embed});
+					break
+
+			}
+		}
+	},
+	{
+		names      : [`lookAround`, "look"],
+		description: `look at the current spot in more detail`,
+		usage      : `lookAround`,
+		values     : [],
+		examples   : [`lookAround`],
+		tags       : [`gameplay`, `map`],
+		conditions : [],
+		effect     : function (message, args, account, prefix) {
+			let pos = account.location;
+			let loc = map[pos[0]][pos[1]][pos[2]];
+			let mapItem = captilize(loc.type);
+			if (loc.type === `colonizing`) {
+				mapItem = `Planet`
+			}
+			let type = ``;//Planet/Colony/Station/safezone/dominatezone or Empty Space
+			let occupied = loc.ownersID !== null;
+			let owner = null;
+			if (occupied) {
+				owner = Account.findFromId(loc.ownersID);
+			}
+			switch (loc.item.toLowerCase()) {
+				case `empty`:
+					type = `Empty Space`;
+					break;
+				case `colonizing`:
+					type = `Colonization in progress`;
+					break;
+				case `station`:
+					type = captilize(loc.type);
+					break;
+				case `colony`:
+					type = captilize(loc.type);
+					break;
+				case `domination`:
+					type = `Domination Zone`;
+					break;
+				case `safezone`:
+					type = `Safe Zone`;
+					break;
+				default:
+					type = captilize(loc.item);
+					break;
+			}
+			let embed = new Discord.RichEmbed()
+				.setColor(colors.blue)
+				.setTitle(`Your current location:`)
+				.setDescription(`Galaxy: \`${pos[0] + 1} Position: \`${pos[2] + 1}x${pos[1] + 1}\``)
+				.addField(`Item`, `You are on a ${type}\n${loc.item.toLowerCase() !== `safezone` && loc.item.toLowerCase() !== `dominatezone` ? occupied ? `Owned by ${Account.findFromId(loc.ownersID).username}` : `You can place a ${loc.item.toLowerCase() === `planet` ? `Colony` : `Station`} here.` : " "}`);
+			if (loc.item.toLowerCase() === `planet` || loc.item.toLowerCase() === `colony`) {
+				let Bonuses = ``;
+				let Rates = ``;
+				for (let i = 0; i < planets[loc.type].bonuses.length; i++) {
+					Bonuses += planets[loc.type].bonuses[i][0] + `\n`;
+				}
+				for (let i = 0; i < planets[loc.type].generatesRates.length; i++) {
+					let stuff = planets[loc.type].generatesRates[i].split(` `);
+					if (stuff.length > 2) {
+						Rates += ` + ${stuff[1]} ${resources[stuff[0]].emoji} ${stuff[0]}  For every ${stuff[3]} people\n`;
+					}
+					else {
+						Rates += ` + ${stuff[1]}% more ${resources[stuff[0]].emoji}${stuff[0]} Generation.`;
+					}
+				}
+				for (let i = 0; i < planets[loc.type].loseRates.length; i++) {
+					let stuff = planets[loc.type].loseRates.split(` `);
+					if (stuff.length > 2) {
+						Rates += ` - ${stuff[1]}${resources[stuff[0]].emoji} ${stuff[0]} For every ${stuff[3]} people\n`;
+					}
+					else {
+						Rates += ` - ${stuff[1]}% more ${resources[stuff[0]].emoji}${stuff[0]} Consumption.`;
+					}
+				}
+
+				if (Rates.length) {
+					embed.addField(`Generation Rates`, `\`\`\`diff\n${Rates}\`\`\``);
+				}
+				if (Bonuses.length) {
+					embed.addField(`Bonuses`, `\`\`\`fix\n${Bonuses}\`\`\``);
+				}
+				embed.setFooter(planets[loc.type].inhabitedMax === 0 ? `Uninhabitable` : `Habitable by ${planets[loc.type].inhabitedMax} people`);
+			}
+			if (loc.item.toLowerCase() === `station` || loc.item.toLowerCase() === `empty`) {
+				let borders = getBorders(pos);
+				let bonuses = {};
+				for (let i = 0; i < borders.length; i++) {
+					if (borders[i].item === `planet` || borders[i].item === `colony`) {
+						let planet = planets[borders[i].type];
+						for (let j = 0; j < planet.bonuses.length; j++) {
+							if (bonuses[planet.bonuses[j][0]] > planet.bonuses[j][1]) {
+								bonuses[planet.bonuses[j][0]] = planet.bonuses[j][1]
+							}
+						}
+					}
+				}
+				let bonusesText = `\`\`\`css`;
+				for (let i = 0; i < stations.names.length; i++) {
+					if (bonuses[stations.names[i]] != null) {
+						bonusesText += `a ${stations.names[i]} will have a ${bonuses[stations.names[i]]}% bonus\n`
+					}
+				}
+				if (bonusesText !== `\`\`\`css\n`) {
+					embed.addField(`Station Bonuses`, bonusesText + `\`\`\``);
+				}
+				if (owner !== null) {
+					let station = null;
+					for (let i = 0; i < owner.stations.length; i++) {
+						if (matchArray(account.location, owner.stations[i].location, false)) {
+							station = owner.stations[i];
+						}
+					}
+					if (station !== null) {
+						embed.addField(`Station's Info`, `\`\`\`css\nLevel: ${station.level}\nDoes: ${stations[loc.type].description}\nOwner's ID: ${owner.id}\`\`\``);
+					}
+				}
+
+			}
+
+//				embed.addField(`Extra Info`,`\`\`\``);
+			message.channel.send({embed});
+		}
+	},
+
+	{
+		names      : [`deleteAccounts`],
+		description: `Delete all account's saved`,
+		usage      : `deleteAccounts`,
+		values     : [],
+		examples   : [`deleteAccounts`],
+		tags       : [`Owner`],
+		conditions : [{cond: checks.isOwner}],
+		effect     : function (message, args, account, prefix) {
+			let numOfAccounts = require(`./accounts.json`).accounts.length;
+			require(`./accounts.json`).accounts = [];
+			sendBasicEmbed({
+				content: `Deleted \`${numOfAccounts}\` accounts`,
+				color  : colors.red,
+				channel: message.channel
+			})
+		}
+	}
+];
 
 client.on("ready", function () {
 	upTime = Date.now();
 	importJSON();
 	console.log(`Galactica | Online`);
-	if(everySecond === false){
-		everySecond = setInterval(everySecondFun,1000);
+	if (everySecond === false) {
+		everySecond = setInterval(everySecondFun, 1000);
 	}
 
 });
@@ -1566,15 +1731,12 @@ client.on("message", function (message) {
 			command = command.substring(1);
 		}
 		args.shift();
-		console.log(channelChecks.isAllowed(message).val);
 		if (channelChecks.isAllowed(message).val) {
-			console.log(`allowed`);
 			let coms = ``;
 			let close = ``;
 			let ranCommand = false;
 			for (let i = 0; i < commands.length; i++) {
 				for (let j = 0; j < commands[i].names.length; j++) {
-					console.log(commands[i].names[j], commands[i].names[j].length, Math.round(commands[i].names[j].length / 3));
 					if (spellCheck(command, commands[i].names[j], Math.round(commands[i].names[j].length / 3))) {
 						coms += commands[i].names[j] + `\n`
 					}
@@ -1582,13 +1744,12 @@ client.on("message", function (message) {
 						let commandCond = canRunCommand(commands[i], message);
 						if (commandCond.val) {
 							let prefix = universalPrefix;
-							if (channelChecks.isServer(message)) {
+							if (channelChecks.isServer(message).val) {
 								prefix = server.findServer(message.guild.id).prefix;
 							}
 							commands[i].effect(message, args, Account.findFromId(message.author.id), prefix);
 							console.log(`ran: `, command);
-							saveJsonFile(`./accounts.json`);
-							saveJsonFile(`./other.json`);
+							saveJSON();
 							return;
 						}
 						else {
