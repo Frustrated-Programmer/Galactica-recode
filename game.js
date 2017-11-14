@@ -40,7 +40,7 @@ fs.exists('./factions.json', function (exists) {
 			if (err) {
 				throw err;
 			}
-			console.log(`created accounts.json`);
+			console.log(`created factions.json`);
 		});
 	}
 });
@@ -72,6 +72,16 @@ function everySecondFun() {
 							.setDescription(`Your new location is Galaxy \`${waitTimes[i].to[0] + 1}\` Position: \`${waitTimes[i].to[2] + 1}x${waitTimes[i].to[1] + 1}\``);
 						acc.send({embed});
 						acc.warping = false;
+						break;
+					case `research`:
+						let acc = Account.findFromId(waitTimes[i].playerID);
+						acc[waitTimes[i].which]++;
+						let embed = new Discord.RichEmbed()
+							.setColor(colors.yellow)
+							.setTitle(`Research complete!`)
+							.setDescription(`You have now leveled up **${waitTimes[i].which}**`);
+						acc.send({embed});
+						acc.researching = false;
 						break;
 
 				}
@@ -328,7 +338,6 @@ function createMap(galaxys, xSize, ySize) {
 	return map;
 }
 function canRunCommand(command, message) {
-	console.log(message.content);
 	for (let i = 0; i < command.conditions.length; i++) {
 		let commandCond = command.conditions[i].cond(message);
 		if (commandCond.val === false) {
@@ -1079,8 +1088,6 @@ const channelChecks = {
 				msg: ``
 			};
 		}
-		console.log(theserver);
-		console.log(theserver.isChannelAllowed(message.channel.id));
 		return {
 			val   : theserver.isChannelAllowed(message.channel.id),
 			msg   : `Commands not allowed in that channel`,
@@ -1108,6 +1115,7 @@ let commands = [
 
 	 }
 	 },
+	
 	 */
 
 
@@ -1489,7 +1497,6 @@ let commands = [
 				return false;
 			}
 
-			console.log(numbers);
 			switch (numbers.length) {
 				default:
 					warpType = `InvalidAmount`;
@@ -1527,7 +1534,6 @@ let commands = [
 					timeForTheWarp += (pLoc[1] >= goToPos[1] ? pLoc[1] - goToPos[1] : goToPos[1] - pLoc[1]);
 					timeForTheWarp += (pLoc[2] >= goToPos[2] ? pLoc[2] - goToPos[2] : goToPos[2] - pLoc[2]);
 					timeForTheWarp = timeForTheWarp * timeTakes.warpPerPosition;
-					console.log(goToPos);
 					account.warping = {expires: Date.now() + timeForTheWarp, to: goToPos};
 					account.location = `Warping to Galaxy: \`${goToPos[0] + 1}\` Position: \`${goToPos[2]}x${goToPos[1]}\``;
 					waitTimes.push({
@@ -1695,34 +1701,34 @@ let commands = [
 		usage      : `scan`,
 		values     : [],
 		examples   : [`scan`],
-		tags       : ["gameplay"],
+		tags       : [`gameplay`],
 		conditions : [
 			{cond:channelChecks.isAllowed},
 			{cond:accountChecks.has}
 			],
 		effect     : function (message, args, account, prefix) {
-			let mainSize = require("./other.json").imageSize;
+			let mainSize = require(`./other.json`).imageSize;
 			let go = null;
 			let mess = null;
 			let embed = new Discord.RichEmbed()
-				.setDescription("```fix\nLoading...\nPlease give the bot some time```")
+				.setDescription(`\`\`\`fix\nLoading...\nPlease give the bot some time\`\`\``)
 				.setColor(colors.blue);
 			message.channel.send({embed}).then(function (m) {
 				mess = m;
 			});
 			function doFun(num) {
-				fs.exists("TheImages/mapImage" + account.userID + ".png", function (exists) {
+				fs.exists(`TheImages/mapImage` + account.userID + `.png`, function (exists) {
 					go = exists;
 				});
 				if (go) {
 					message.channel.stopTyping(true);
 					let emb = new Discord.RichEmbed()
 						.setColor(colors.blue)
-						.setDescription("Scanned")
-						.attachFile("./TheImages/mapImage" + account.userID + ".png")
-						.setImage("attachment://mapImage" + account.userID + ".png");
+						.setDescription(`Scanned`)
+						.attachFile(`./TheImages/mapImage` + account.userID + `.png`)
+						.setImage(`attachment://mapImage` + account.userID + `.png`);
 					message.channel.send({embed: emb}).then(function () {
-						fs.unlink("TheImages/mapImage" + account.userID + ".png");
+						fs.unlink(`TheImages/mapImage` + account.userID + `.png`);
 						if (mess != null) {
 							mess.delete();
 						}
@@ -1745,8 +1751,8 @@ let commands = [
 
 			let done = [];
 			let playersVision = 3;
-			playersVision += account["Eagle Eyed"];
-			if (typeof playersVision !== "number") {
+			playersVision += account[`Eagle Eyed`];
+			if (typeof playersVision !== `number`) {
 				playersVision = 3;
 			}
 			let canShowFunc = function (y, x) {
@@ -1764,7 +1770,7 @@ let commands = [
 					if (theMap[y][x].ownersID != null) {
 						if (theMap[y][x].ownersID === account.userID) {
 
-							if (theMap[y][x].type.toLowerCase() === "military station") {
+							if (theMap[y][x].type.toLowerCase() === `military station`) {
 								for (let i = 0; i < account.stations.length; i++) {
 									let stats = account.stations[i];
 									if (matchArray([account.location[0], y, x], stats.location)) {
@@ -1774,12 +1780,12 @@ let commands = [
 									}
 								}
 							}
-							else if (theMap[y][x].item === "station") {
+							else if (theMap[y][x].item === `station`) {
 								if (dis <= 1) {
 									found = true;
 								}
 							}
-							else if (theMap[y][x].item === "colony") {
+							else if (theMap[y][x].item === `colony`) {
 								if (dis <= 1) {
 									found = true;
 								}
@@ -1805,7 +1811,6 @@ let commands = [
 				return found;
 			};
 			let setImage = function (y, x, which, newimage) {
-				console.log("read",which);
 				Jimp.read(which, function (err, image) {
 					if (err) throw err;
 					image.resize(size, size);
@@ -1813,24 +1818,22 @@ let commands = [
 					done[y][x] = true;
 				});
 			};
-			console.log("b4")
 			let image = new Jimp(mainSize, mainSize, function (err, newimage) {
-				console.log("aft");
 				for (let i = 0; i < m.length; i++) {
 					done.push([]);
 					for (let j = 0; j < m[i].length; j++) {
-						let folder = "";
-						let who = "";
+						let folder = ``;
+						let who = ``;
 						let typeImage = m[i][j].type;
 
 						done[i].push(false);
 						let canShow = canShowFunc(i, j);
 
 						if (canShow) {
-							if (m[i][j].type !== "empty") {
+							if (m[i][j].type !== `empty`) {
 								if (m[i][j].ownersID !== null) {
 									if (m[i][j].ownersID === account.userID) {
-										who = "You";
+										who = `You`;
 									}
 									if (account.faction != null) {
 										let fac = factions[account.faction];
@@ -1843,49 +1846,49 @@ let commands = [
 												}
 											}
 											if (found) {
-												who = "Faction";
+												who = `Faction`;
 
 											}
 											else {
-												who = "Enemy";
+												who = `Enemy`;
 											}
 										}
 									}
 									else {
-										who = "Enemy";
+										who = `Enemy`;
 									}
-									folder = m[i][j].item + "s";
-									if (m[i][j].item === "colony") {
-										folder = "planets";
-										typeImage = m[i][j].type + "Planet";
+									folder = m[i][j].item + `s`;
+									if (m[i][j].item === `colony`) {
+										folder = `planets`;
+										typeImage = m[i][j].type + `Planet`;
 									}
 								}
 								else {
-									if (m[i][j].item === "planet") {
-										folder = "planets";
-										who = "Neutral";
-										typeImage = m[i][j].type + "Planet";
+									if (m[i][j].item === `planet`) {
+										folder = `planets`;
+										who = `Neutral`;
+										typeImage = m[i][j].type + `Planet`;
 									}
 									else {
-										folder = "Other";
-										who = "items";
+										folder = `Other`;
+										who = `items`;
 										typeImage = m[i][j].type
 									}
 								}
 							}
 							if (!folder.length) {
-								folder = "Other";
-								who = "items";
-								typeImage = "EmptySpace";
+								folder = `Other`;
+								who = `items`;
+								typeImage = `EmptySpace`;
 							}
 						}
 						else {
-							folder = "Other";
-							who = "items";
-							typeImage = "Unknown";
+							folder = `Other`;
+							who = `items`;
+							typeImage = `Unknown`;
 						}
 
-						setImage(i, j, "TheImages/" + folder + "/" + who + "/" + typeImage + ".png", newimage);
+						setImage(i, j, `TheImages/${folder}/${who}/${typeImage}.png`, newimage);
 					}
 				}
 				done.push([]);
@@ -1898,7 +1901,7 @@ let commands = [
 							if (loc[1] === account.location[1] && loc[2] === account.location[2]) {
 								somethingUnder = true;
 							}
-							setImage(loc2[1], loc2[2], "TheImages/Other/items/Player.png", newimage);
+							setImage(loc2[1], loc2[2], `TheImages/Other/items/Player.png`, newimage);
 						}
 					}
 				}
@@ -1915,7 +1918,7 @@ let commands = [
 						}
 					}
 					if (finished) {
-						newimage.write("TheImages/mapImage" + account.userID + ".png");
+						newimage.write(`TheImages/mapImage${account.userID}.png`);
 					}
 					else {
 						setTimeout(function () {
@@ -1928,17 +1931,145 @@ let commands = [
 				setTimeout(function () {
 					doFun();
 				}, 1000);
-				Jimp.read("./TheImages/Other/items/GridLines.png", function (err, image) {
+				Jimp.read(`./TheImages/Other/items/GridLines.png`, function (err, image) {
 					if (err) throw err;
 					image.resize(mainSize, mainSize);
 					newimage.composite(image, 0, 0);
 					done[m.length][0] = true;
 					done[loc[1]][loc[2]] = false;
-					setImage(loc[1], loc[2], "TheImages/Other/items/You.png", newimage);
+					setImage(loc[1], loc[2], `TheImages/Other/items/You.png`, newimage);
 				});
 			});
 		}
 	},
+	{
+		names 	   :[`research`,`researches`,`r`],
+		description:`research something or find out more information.`,
+		usage	   :`research (VALUE)`,
+		values	   :[`List`,`Info {NAME}`,`{NAME}`],
+		examples   :[`research info ${researches[researches.names[1]]}`, `research ${researches[researches.names[5]]}`],
+		tags       : [`gameplay`],
+		conditions :[],
+		effect	   :function(message,args,account,prefix){
+			let embed = new Discord.RichEmbed()
+				.setColor(colors.yellow);
+			let numbs = getNumbers(args, false);
+			let number = null;
+			let researchItem = ``;
+			if (!args.length) {
+				args = [`list`];
+			}
+			else{
+				if (numbs.length) {
+					number = parseInt(numbs[0], 10)-1;
+					if (number >= researches.names.length&&number<=0) {
+						number = null;
+						embed.setColor(colors.red);
+						embed.setDescription(`Invalid ID number`);
+					}else{
+						researchItem = researches.names[number];
+					}
+				}
+				else {
+					for (let q = 0; q < args.length; q++) {
+						if(args[0]!==`info`&&args[0]!==`list`) {
+							researchItem+=args[q];
+						}
+					}
+				}
+			}
+
+			let typos = `\`\`\`css\n`;
+			if(number === null){
+				for(let i =0;i<researches.names.length;i++){
+					if(researchItem.toLowerCase() === researches.names[i].toLowerCase()){
+						number = i;
+						break;
+					}
+					if(spellCheck(researchItem,researches.names[i],Math.round(researchItem.length/4))){
+						typos+=`${captilize(researches.names[i])}\n`;
+					}
+				}
+			}
+			let spellCheckText = ``;
+			if(typos!==`\`\`\`css\n`){
+				typos+=`\`\`\``;
+				spellCheckText=`Did you mean:`+typos;
+			}
+			else{
+				spellCheckText = `Try \`${universalPrefix}researches list\`\nTo find the correct research.`;
+			}
+			switch (args[0]) {
+				case `info`:
+					if (number !== null) {
+						let item = researches[researches.names[number]];
+						let level = account[researches.names[number]];
+						embed.setTitle(`RESEARCH INFO`);
+						embed.setDescription(`You have \`${account[`research`]}\` ${resources[`research`].emoji} research\n${researches.names[number]}'s level is \`${level + 1}`);
+						embed.addField(researches.names[number], item.does[level] + `\nCosts: ` + item.costs[level] + ` 💡 research\nTime: ` + getTimeRemaining(item.timesToResearch[level]));
+						embed.setFooter(prefix + `research ` + researches.names[number]);
+					}
+					else{
+						embed.setColor(colors.red);
+						embed.setDescription(`Invalid Research name\n${spellCheckText}`);
+					}
+					break;
+				case `list`:
+					embed.setColor(colors.yellow);
+					embed.setTitle(`ID-------Name-------------------------------Research-Cost`);
+					let txt = `\`\`\`css\n`;
+					for (let i = 0; i < researches.names.length; i++) {
+						let item = researches[researches.names[i]];
+						let level = account[researches.names[i]] || 0;
+						txt += spacing(`[${i+1}] ${researches.names[i]}`, `${item.costs[level]} ${resources["research"].emoji}\n`, 40);
+					}
+					txt += `\`\`\``;
+					embed.setDescription(txt);
+					embed.setFooter(prefix + `research info [NAME]/[ID]`);
+					break;
+				default:
+					if (number !== null) {
+						let item = researches[researches.names[number]];
+						let level = account[researches.names[number]];
+						if(account.researching === false) {
+							if (account[`research`] >= item.costs[level]) {
+								account[`research`] -= item.costs[level];
+								let researchTime = item.timesToResearch[level];
+								researchTime -= Math.round(((account[`Scientific Labs`] * 5) / researchTime) * 100);
+								waitTimes.push({
+									expires : Date.now() + researchTime,
+									type    : `research`,
+									playerID: account.userID,
+									which   : researches.names[number]
+								});
+								account.researching = {
+									expires : Date.now() + researchTime,
+									which:researches.names[number]
+								};
+								embed.setDescription(`Researching **${researches.names[number]}**...\nWill take about ${getTimeRemaining(researchTime)}\nCosts: \`${item.costs[level]}\` ${resources[`research`].emoji} Research`);
+							}
+							else {
+								embed.setDescription(`Not enough ${resources[`research`].emoji} research.\nMissing \`${item.costs[level] - account[`research`]}\` research`);
+								embed.setColor(colors.red);
+							}
+						}
+						else{
+							embed.setColor(colors.red);
+							embed.setDescription(`You are currently research ${account.researching.which}.\nYou must wait for it to finish before researching another item.\nTime until completion: ${getTimeRemaining(account.researching.expires - Date.now())}`);
+						}
+					}
+					else{
+						embed.setColor(colors.red);
+						embed.setDescription(`Invalid Research name\n${spellCheckText}`);
+					}
+					break;
+			}
+			message.channel.send({embed})
+		}
+	},
+	
+	
+	
 	{
 		names      : [`deleteAccounts`],
 		description: `Delete all account's saved`,
