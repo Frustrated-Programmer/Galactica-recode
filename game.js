@@ -58,15 +58,57 @@ let factions = [], servers = [], accounts = [], waitTimes = otherJson.waitTimes;
 let everySecond = false;
 
 /**functions**/
+
+function getValidName(name,amo){
+	let newName = "";
+	if (isValidText(name)) {
+		newName = name;
+	}
+	else {
+		for (let j = 0; j <  name.length; j++) {
+			if (name.charCodeAt(j) > 127) {
+				newName += "*";
+			}
+			else {
+				newName += name[j];
+			}
+		}
+	}
+
+	if (name.length > amo) {
+		name = name.substring(0, amo-3);
+		name += "...";
+	}
+
+	let spaceName = "";
+	for (let j = 0; j < amo - name.length; j++) {
+		spaceName += " ";
+	}
+
+	return newName+spaceName;
+}
+function isValidText(str) {
+	if (typeof(str) !== 'string') {
+		return false;
+	}
+	for (let i = 0; i < str.length; i++) {
+		if (str.charCodeAt(i) > 127) {
+			return false;
+		}
+	}
+	return true;
+}
 function everySecondFun() {
 	if (waitTimes.length) {
 		for (let i = 0; i < waitTimes.length; i++) {
 			if (waitTimes[i].expires <= Date.now()) {
+
+				let acc = Account.findFromId(waitTimes[i].playerID);
+				let embed = new Discord.RichEmbed()
 				switch (waitTimes[i].type) {
 					case `warp`:
-						let acc = Account.findFromId(waitTimes[i].playerID);
 						acc.location = copyObject(waitTimes[i].to);
-						let embed = new Discord.RichEmbed()
+						embed= new Discord.RichEmbed()
 							.setColor(colors.blue)
 							.setTitle(`Warp complete`)
 							.setDescription(`Your new location is Galaxy \`${waitTimes[i].to[0] + 1}\` Position: \`${waitTimes[i].to[2] + 1}x${waitTimes[i].to[1] + 1}\``);
@@ -74,15 +116,24 @@ function everySecondFun() {
 						acc.warping = false;
 						break;
 					case `research`:
-						let acc = Account.findFromId(waitTimes[i].playerID);
 						acc[waitTimes[i].which]++;
-						let embed = new Discord.RichEmbed()
+						embed = new Discord.RichEmbed()
 							.setColor(colors.yellow)
 							.setTitle(`Research complete!`)
 							.setDescription(`You have now leveled up **${waitTimes[i].which}**`);
 						acc.send({embed});
 						acc.researching = false;
 						break;
+					case `heal`:
+						acc.health = 100;
+						embed = new Discord.RichEmbed()
+							.setColor(colors.yellow)
+							.setTitle(`Healing complete!`)
+							.setDescription(`You have healed yourself.\nYou now have \`100\` Health Points`);
+						acc.send({embed});
+						acc.healing = false;
+						break;
+
 
 				}
 				waitTimes.splice(i, 1);
@@ -412,7 +463,7 @@ const planets = {
 		loseRates     : []
 	}
 };
-const Station = {
+const stations = {
 	names                          : [`Mining Station`, `Refining Station`, `Research Station`, `Agriculture Station`, `Military Station`, `Magnetic Smelter`, `Electronic Propulsion Station`],
 	"Mining Station"               : {
 		name        : `Mining Station`,
@@ -776,58 +827,7 @@ const timeTakes = {
 
 //TODO add factions
 /***
- let nums = account.userID;
- let player = account;
- if (player.faction != null) {
-				let fac = factions[player.faction];
-				if (fac) {
-					for (let i = 0; i < fac.members.length; i++) {
-						if (fac.members[i].id === player.id) {
-							if (fac.members[i].rank !== `owner`) {
-								fac.members.splice(i, 1);
-							}
-							else {
-								let found = false;
-								for (let j = 0; j < fac.members.length; i++) {
-									if (fac.members[j].rank === `mod`) {
-										fac.members[j].rank = `owner`;
-										found = true;
-										break;
-									}
-								}
-								if (!found) {
-									for (let j = 0; j < fac.members.length; i++) {
-										if (fac.members[j].rank === `mod`) {
-											accountData[fac.members[j].id].faction = null;
-										}
-									}
-									delete factions[player.faction];
-								}
-							}
-						}
-					}
-				}
-			}
- if (player.stations.length) {
-				for (let i = 0; i < player.stations.length; i++) {
-					let loc = player.stations[i].location;
-					map[loc[0]][loc[1]][loc[2]].type = `empty`;
-					map[loc[0]][loc[1]][loc[2]].ownersID = null;
-				}
-			}
- for (let i = 0; i < accountData.names.length; i++) {
-				if (accountData.names[i] === player.userID) {
-					accountData.names.splice(i, 1);
-				}
-			}
- let newData = {
-				names: accountData.names
-			};
- for (let i = 0; i < accountData.names.length; i++) {
-				newData[accountData.names[i]] = accountData[accountData.names[i]];
-			}
- require(`./accounts.json`).players = newData;
- accountData = newData;
+
 
  */
 
@@ -943,7 +943,50 @@ Account.prototype.moveTo = function (loc) {
 	}
 };
 Account.prototype.remove = function () {
-
+	if (this.faction != null) {
+		let fac = Faction.findFactionFromName(this.faction);
+		if (fac) {
+			for (let i = 0; i < fac.members.length; i++) {
+				if (fac.members[i].id === player.id) {
+					if (fac.members[i].rank !== `owner`) {
+						fac.members.splice(i, 1);
+					}
+					else {
+						let found = false;
+						for (let j = 0; j < fac.members.length; i++) {
+							if (fac.members[j].rank === `mod`) {
+								fac.members[j].rank = `owner`;
+								found = true;
+								break;
+							}
+						}
+						if (!found) {
+							for (let j = 0; j < fac.members.length; i++) {
+								accountData[fac.members[j].id].faction = null;
+							}
+							delete factions[this.faction];
+						}
+					}
+				}
+			}
+		}
+	}
+	if (this.stations.length) {
+		for (let i = 0; i < this.stations.length; i++) {
+			let loc = this.stations[i].location;
+			map[loc[0]][loc[1]][loc[2]].item = `empty`;
+			map[loc[0]][loc[1]][loc[2]].type = `empty`;
+			map[loc[0]][loc[1]][loc[2]].ownersID = null;
+		}
+	}
+	let number = 0;
+	for(let i =0;i<accounts.length;i++){
+		if(this.userID  === accounts.userID){
+			number = i;
+			break;
+		}
+	}
+	require(`./accounts.json`).accounts.splice(i,1);
 };
 Account.prototype.send = function (message) {
 	if (typeof this.user === "boolean") {
@@ -956,6 +999,7 @@ Account.prototype.send = function (message) {
 		this.user.send(message);
 	}
 };
+
 
 /**SERVERS**/
 let server = function (data) {
@@ -1115,7 +1159,7 @@ let commands = [
 
 	 }
 	 },
-	
+
 	 */
 
 
@@ -1356,7 +1400,7 @@ let commands = [
 		tags       : [`gameplay`, `game`, `account`],
 		conditions : [{cond: channelChecks.isAllowed}],
 		effect     : function (message, args, account, prefix) {
-			account.remove(account.findFromId(message.author.id));
+			account.remove(Account.findFromId(message.author.id));
 			sendBasicEmbed({
 				content: `😭 Goodbye ${message.author.username}\neverything has been deleted.`,
 				color  : colors.red,
@@ -1435,19 +1479,22 @@ let commands = [
 				embed.addField(`Resources`, `You currently don't have any resources`);
 			}
 			embed.addField(`Stations and Colonies`, `You have \`${player.stations.length}\` stations\nYou have \`${player.colonies.length}\` colonies`);
-			if (account.warping !== false || account.building !== false || account.colonizing !== false || account.researching !== false) {
+			if (account.warping !== false || account.building !== false || account.colonizing !== false || account.researching !== false || account.healing!==false) {
 				let times = `\`\`\`css\n`;
+				if (account.healing !== false) {
+					times += spacing(`[Healing]`, getTimeRemaining(account.healing.expires - Date.now()), 50);
+				}
 				if (account.warping !== false) {
-					times += spacing(`Warping: `, getTimeRemaining(account.warping.expires - Date.now()), 50);
+					times += spacing(`[Warping]`, getTimeRemaining(account.warping.expires - Date.now()), 50);
 				}
 				if (account.colonizing !== false) {
-					times += spacing(`Colonizing: `, getTimeRemaining(account.colonizing.expires - Date.now()), 50);
+					times += spacing(`[Colonizing]`, getTimeRemaining(account.colonizing.expires - Date.now()), 50);
 				}
 				if (account.researching !== false) {
-					times += spacing(`Researching: `, getTimeRemaining(account.researching.expires - Date.now()), 50);
+					times += spacing(`[Researching]`, getTimeRemaining(account.researching.expires - Date.now()), 50);
 				}
 				if (account.building !== false) {
-					times += spacing(`Building: `, getTimeRemaining(account.building.expires - Date.now()), 50);
+					times += spacing(`[Building]`, getTimeRemaining(account.building.expires - Date.now()), 50);
 				}
 				embed.addField(`Timers`, `${times}\`\`\``);
 			}
@@ -1690,8 +1737,39 @@ let commands = [
 				}
 
 			}
-
-//				embed.addField(`Extra Info`,`\`\`\``);
+			let otherPlayers = [];
+			for (let i = 0; i < accounts.length; i++) {
+				let player = accounts[i]
+				if (player.userID !== account.userID) {
+					if (matchArray(account.location, player.location, false)) {
+						otherPlayers.push(player);
+					}
+				}
+			}
+			if (otherPlayers.length) {
+				let txt = "ID|NAME---|FACTION|HP|\n```css\n";
+				for (let i = 0; i < otherPlayers.length; i++) {
+					let name = getValidName(otherPlayers[i].username,10);
+					let spaceFaction = "";
+					if (otherPlayers[i].faction !== null) {
+						for (let j = 0; j < 10 - otherPlayers[i].faction.length; j++) {
+							spaceFaction += " ";
+						}
+						spaceFaction += otherPlayers.faction + "|"
+					}
+					else {
+						spaceFaction = "None Yet  |";
+					}
+					let space = "";
+					if (i + 1 < 10) {
+						space += " ";
+					}
+					txt += "[" + otherPlayers[i].id + space + "]|" + name + "|" + spaceFaction + otherPlayers[i].health + "|\n";
+				}
+				if (safe) {
+					embed.addField("Players", txt + "```\nAttack a player via `attackPlayer [ID]`");
+				}
+			}
 			message.channel.send({embed});
 		}
 	},
@@ -1949,7 +2027,10 @@ let commands = [
 		values	   :[`List`,`Info {NAME}`,`{NAME}`],
 		examples   :[`research info ${researches[researches.names[1]]}`, `research ${researches[researches.names[5]]}`],
 		tags       : [`gameplay`],
-		conditions :[],
+		conditions :[
+			{cond:channelChecks.isAllowed},
+			{cond:accountChecks.has}
+		],
 		effect	   :function(message,args,account,prefix){
 			let embed = new Discord.RichEmbed()
 				.setColor(colors.yellow);
@@ -2067,8 +2148,116 @@ let commands = [
 			message.channel.send({embed})
 		}
 	},
-	
-	
+
+	{
+		names 	   :[`remove`,`removeMy`],
+		description:`remove a station or colony out of your reach`,
+		usage	   :`remove [VALUE]`,
+		values	   :[`Station [ID]`,`Colony [ID]`],
+		examples   :[`remove station 3`,`remove colony 8`],
+		tags       : [`station`,`colony`,`gameplay`],
+		conditions :[
+			{cond:channelChecks.isAllowed},
+			{cond:accountChecks.has}
+		],
+		effect	   :function(message,args,account,prefix){
+			let embed = new Discord.RichEmbed()
+				.setColor(embedColors.red);
+			if(args.length){
+				if(args[0] === `my`){
+					if(args[1]!=null){
+						args.splice(0,1);
+					}
+				}
+				let which = getNumbers(args[0],true);
+				if(which.length) {
+					let rank = ranks[account.rank];
+					if (args[0] === `colony` || args[0] === `colonies`) {
+						let colony = account.colonies[which[0]-1];
+						if(colony != null) {
+							if (colony.location[0] > rank.max || station.location[0] < rank.min) {
+								let stuff = Math.round(colony.people / 2);
+								let given = ``;
+								if (stuff > 0) {
+									account[stuff[0]] += parseInt(stuff[1], 10);
+									given = `Received \`${stuff} ${resources[`food`].emoji} food as a small refund bonus.`;
+								}
+								account.stations.splice(which[0] - 1, 1);
+								embed.setDescription(`Successfully removed your Colony\n${given}`)
+
+							}
+							else {
+								embed.setDescription(`Your rank doesn't prohibit you from warping to it.\nThis command is exclusive to those that cannot access their Colonies anymore`)
+							}
+						}
+					}
+					else if (args[0] === `station` || args[0] === `stations`) {
+						let station = account.stations[which[0]-1];
+						if(station!=null) {
+							if (station.location[0] > rank.max || station.location[0] < rank.min) {
+								let stuff = stations[station.type].destroyBonus.split(` `);
+								let given = ``;
+								if (stuff.length) {
+									account[stuff[0]] += parseInt(stuff[1], 10);
+									given = `Received \`${stuff[1]} ${resources[stuff[0]].emoji} ${stuff[0]} as a small refund bonus.`;
+								}
+								account.stations.splice(which[0] - 1, 1);
+								embed.setDescription(`Successfully removed your Station\n${given}`)
+
+							}
+							else {
+								embed.setDescription(`Your rank doesn't prohibit you from warping to it.\nThis command is exclusive to those that cannot access their Stations anymore`)
+							}
+						}
+						else{
+							embed.setDescription(`Invalid station ID\nRun \`myStations\` to get a list of you're station's ids`)
+						}
+					}
+					else{
+						embed.setDescription(`I don't know what ${args[0]} is. Please input instead\n\`Station\` or \`Colony\``)
+					}
+				}
+				else{
+					embed.setDescription(`You have to include which \`stations\` or \`colony\` yo want`);
+				}
+			}
+			else{
+				embed.setDescription(`You have to include what you want to remove:\n\`Colony\` or \`Station\`\nAnd which one you want to remove\n\`myStations\` and \`myColonies\` to check the ID of them`)
+			}
+		}
+	},
+	{
+		names 	   :[`heal`,`h`],
+		description:`heal yourself`,
+		usage	   :``,
+		values	   :[],
+		examples   :[``,``],
+		tags       : [],
+		conditions :[],
+		effect	   :function(message,args,account,prefix){
+			if (account.health < 100) {
+				account.healing = true;
+				waitTimes.push({
+					playerID : account.userID,
+					expires: Date.now() + (100 - playerData.health) * 60000,
+					type   : "heal"
+				});
+				sendBasicEmbed({
+					content: "Healing started. will take\n" + getTimeRemaining((100 - account.health) * 60000),
+					color  : colors.blue,
+					channel: message.channel
+				})
+			}
+			else {
+				sendBasicEmbed({
+					content: "You are at full health already.",
+					color  : colors.red,
+					channel: message.channel
+				})
+			}
+		}
+	},
+
 	
 	{
 		names      : [`deleteAccounts`],
